@@ -57,6 +57,9 @@ void testHandleKeyAction(IO& io) {
 
 // Main function (should be placed in a separate file, e.g., main.cpp)
 int main() {
+    lo << "Hello";
+    lo << 1;
+    lo << "a" << 2 << 4 << "b";
     Window wm("exe mpv.exe"); // Initialize with an empty identifier
 
     // Example usage of adding groups
