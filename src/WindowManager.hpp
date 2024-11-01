@@ -11,7 +11,17 @@
 #include "types.hpp"
 
 extern group groups; // Map to store groups
+// Struct to hold the window handle and the target process name
+struct EnumWindowsData {
+    HWND hwnd;
+    std::string targetProcessName;
 
+    EnumWindowsData(const std::string& processName) 
+        : hwnd(NULL), targetProcessName(processName) {}
+};
+
+// Callback function for EnumWindows
+BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam);
 class WindowManager {
 public:
     // Method to find a window based on various identifiers

@@ -1,11 +1,11 @@
 #include "IO.hpp"
 
 // Helper function to convert string to virtual key code
-int IO::StringToVirtualKey(cstr keyName) {
+int IO::StringToVirtualKey(str keyName) {
     if (keyName.length() == 1) {
         return VkKeyScan(keyName[0]);
     }
-    
+    keyName = ToLower(keyName);
     // Map string names to virtual key codes
     if (keyName == "home") return VK_HOME;
     if (keyName == "end") return VK_END;
@@ -29,11 +29,21 @@ int IO::StringToVirtualKey(cstr keyName) {
     if (keyName == "right") return VK_RIGHT;
     if (keyName == "enter") return VK_RETURN;
     if (keyName == "space") return VK_SPACE;
-    if (keyName == "rwin") return VK_RWIN;
-    // if (keyName == "ralt") return VK_RALT;
+    if (keyName == "lbutton") return VK_LBUTTON;
+    if (keyName == "rbutton") return VK_RBUTTON;
     if (keyName == "apps") return VK_APPS;
+    if (keyName == "win") return 0x5B;
+    if (keyName == "lwin") return VK_LWIN;
+    if (keyName == "rwin") return VK_RWIN;
+    if (keyName == "ctrl") return VK_CONTROL;
+    if (keyName == "lctrl") return VK_LCONTROL;
     if (keyName == "rctrl") return VK_RCONTROL;
+    if (keyName == "shift") return VK_SHIFT;
+    if (keyName == "lshift") return VK_LSHIFT;
     if (keyName == "rshift") return VK_RSHIFT;
+    if (keyName == "alt") return VK_MENU;
+    if (keyName == "lalt") return VK_LMENU;
+    if (keyName == "ralt") return VK_RMENU;
     if (keyName == "backspace") return VK_BACK;
     if (keyName == "tab") return VK_TAB;
     if (keyName == "capslock") return VK_CAPITAL;
@@ -45,6 +55,11 @@ int IO::StringToVirtualKey(cstr keyName) {
     if (keyName == "volumedown") return VK_VOLUME_DOWN;
 
     return 0; // Default case for unrecognized keys
+}
+str IO::ToLower(cstr string) {
+    str lowerStr = string;
+    std::transform(lowerStr.begin(), lowerStr.end(), lowerStr.begin(), ::tolower);
+    return lowerStr;
 }
 
 void IO::Send(cstr keys) {
@@ -59,7 +74,7 @@ void IO::ProcessKeyCombination(cstr keys) {
         if (keys[i] == '{') {
             // Start of a special key sequence
             size_t end = keys.find('}', i);
-            if (end != std::string::npos) {
+            if (end != str::npos) {
                 str sequence = keys.substr(i + 1, end - i - 1);
                 if (sequence == "Alt down") {
                     modifiers |= MOD_ALT;
@@ -101,7 +116,7 @@ void IO::ProcessKeyCombination(cstr keys) {
         }
 
         // Regular character processing
-        int virtualKey = StringToVirtualKey(std::string(1, keys[i]));
+        int virtualKey = StringToVirtualKey(str(1, keys[i]));
         if (virtualKey) {
             keybd_event(virtualKey, 0, 0, 0); // Press down
             keybd_event(virtualKey, 0, KEYEVENTF_KEYUP, 0); // Release
@@ -142,7 +157,7 @@ void IO::ControlSend(cstr control, cstr keys) {
     HWND hwnd = WindowManager::Find(control);
     if (hwnd) {
         for (char key : keys) {
-            int virtualKey = StringToVirtualKey(std::string(1, key));
+            int virtualKey = StringToVirtualKey(str(1, key));
             if (virtualKey) {
                 SendMessage(hwnd, WM_KEYDOWN, virtualKey, 0);
                 SendMessage(hwnd, WM_KEYUP, virtualKey, 0);
@@ -186,19 +201,19 @@ void IO::HotkeyListen() {
 
 int IO::ParseModifiers(str str) {
     int modifiers = 0;
-    if (str.find("+") != std::string::npos) {
+    if (str.find("+") != str::npos) {
         modifiers |= MOD_SHIFT;
         str.erase(str.find("+"), 1);
     }
-    if (str.find("^") != std::string::npos) {
+    if (str.find("^") != str::npos) {
         modifiers |= MOD_CONTROL;
         str.erase(str.find("^"), 1);
     }
-    if (str.find("!") != std::string::npos) {
+    if (str.find("!") != str::npos) {
         modifiers |= MOD_ALT;
         str.erase(str.find("!"), 1);
     }
-    if (str.find("#") != std::string::npos) {
+    if (str.find("#") != str::npos) {
         modifiers |= MOD_WIN;
         str.erase(str.find("#"), 1);
     }
@@ -212,4 +227,80 @@ void IO::HandleKeyAction(cstr action, cstr keyName) {
     } else if (action == "up") {
         keybd_event(virtualKey, 0, KEYEVENTF_KEYUP, 0);
     }
+}
+void printBinary(short value) {
+    for (int i = sizeof(value) * 8 - 1; i >= 0; --i) {
+        printf("%d", (value >> i) & 1);
+    }
+}
+int IO::GetState(cstr keyName, cstr mode) {
+    // Define the virtual key code
+    int virtualKey = 0;
+
+    // Check for known key names and map them to virtual key codes
+    virtualKey = StringToVirtualKey(keyName);
+    
+    // Retrieve the state using GetAsyncKeyState
+    if (mode.empty() || mode == "P") {
+        // Physical state
+        short state = GetAsyncKeyState(virtualKey);
+            
+            // Print the state in hexadecimal
+            printf("Key State (Hex): 0x%04X\n", state);
+            
+            // Print the state in binary
+            printf("Key State (Binary): ");
+            printBinary(state);
+            printf("\n");
+
+            // Bitwise operations
+            short and1 = state & 0x8;
+            short and2 = state & 0x8;
+            short and3 = state & 0x80;
+            short and4 = state & 0x8000;
+            short and5 = state & 0x800;
+            short and6 = state & 0x0001;
+            short and7 = state & 0x1;
+            short and8 = state & virtualKey;
+
+            // Print results of bitwise operations in hexadecimal and binary
+            printf("and (0x8) (Hex): 0x%04X, (Binary): ", and1);
+            printBinary(and1);
+            printf("\n");
+
+            printf("and2 (0x8) (Hex): 0x%04X, (Binary): ", and2);
+            printBinary(and2);
+            printf("\n");
+
+            printf("and3 (0x80) (Hex): 0x%04X, (Binary): ", and3);
+            printBinary(and3);
+            printf("\n");
+
+            printf("and4 (0x8000) (Hex): 0x%04X, (Binary): ", and4);
+            printBinary(and4);
+            printf("\n");
+
+            printf("and5 (0x800) (Hex): 0x%04X, (Binary): ", and5);
+            printBinary(and5);
+            printf("\n");
+
+            printf("and6 (0x0001) (Hex): 0x%04X, (Binary): ", and6);
+            printBinary(and6);
+            printf("\n");
+
+            printf("and7 (0x1) (Hex): 0x%04X, (Binary): ", and7);
+            printBinary(and7);
+            printf("\n");
+
+            printf("and8 (virtualKey) (Hex): 0x%04X, (Binary): ", and8);
+            printBinary(and8);
+            printf("\n");
+
+            return (state & 0x8) ? 1 : 0;
+    } else if (mode == "T") {
+        // Toggle state for keys like CapsLock, NumLock, ScrollLock
+        return (GetKeyState(virtualKey) & 0x1) ? 1 : 0;
+    }
+
+    return 0; // Default case if mode is not recognized
 }

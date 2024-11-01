@@ -6,6 +6,7 @@
 #include <thread>
 #include <functional>
 #include <unordered_map>
+#include <algorithm>
 #include "WindowManager.hpp"
 // Structure to hold hotkey information
 struct Hotkey {
@@ -18,6 +19,7 @@ struct Hotkey {
     bool blockInput; // Whether to block input when the hotkey is activated
 };
 
+
 // IO class declaration
 class IO {
 public:
@@ -29,10 +31,11 @@ public:
     void SetTimer(int milliseconds, const std::function<void()>& func);
     void MsgBox(cstr message);
     void HandleKeyAction(cstr action, cstr keyName);
-
+    static int GetState(const std::string& keyName, const std::string& mode = "T");
+    static int StringToVirtualKey(str keyName);
+    static str ToLower(cstr str);
 private:
     int ParseModifiers(str str);
-    int StringToVirtualKey(cstr keyName);
     void ProcessKeyCombination(cstr keys);
     
     int hotkeyCount = 0; // Incrementing identifier for hotkeys

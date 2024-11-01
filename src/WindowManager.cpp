@@ -57,30 +57,36 @@ HWND WindowManager::GetHWNDByPID(DWORD pid) {
 }
 
 // Helper to get HWND by process name
-HWND WindowManager::GetHWNDByProcessName(cstr processName) {
-    HWND hwnd = NULL;
-    EnumWindows([](HWND hwnd, LPARAM lParam) -> BOOL {
-        DWORD windowPID;
-        GetWindowThreadProcessId(hwnd, &windowPID);
-        HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, windowPID);
-        if (hProcess) {
-            char name[MAX_PATH];
-            if (GetModuleFileNameExA(hProcess, NULL, name, sizeof(name))) {
-                str fullName(name);
-                str processBaseName = fullName.substr(fullName.find_last_of("\\") + 1);
-                if (processBaseName == *(str*)lParam) {
-                    *((HWND*)lParam) = hwnd;
-                    CloseHandle(hProcess);
-                    return FALSE; // Stop enumeration
-                }
+// Callback function for EnumWindows
+BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam) {
+    EnumWindowsData* data = reinterpret_cast<EnumWindowsData*>(lParam);
+    DWORD windowPID;
+    GetWindowThreadProcessId(hwnd, &windowPID);
+    HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, windowPID);
+    
+    if (hProcess) {
+        char name[MAX_PATH];
+        if (GetModuleFileNameExA(hProcess, NULL, name, sizeof(name))) {
+            std::string fullName(name);
+            std::string processBaseName = fullName.substr(fullName.find_last_of("\\") + 1);
+
+            if (processBaseName == data->targetProcessName) {
+                data->hwnd = hwnd; // Set the found HWND
+                CloseHandle(hProcess);
+                return FALSE; // Stop enumeration
             }
-            CloseHandle(hProcess);
         }
-        return TRUE; // Continue enumeration
-    }, (LPARAM)&processName);
-    return hwnd;
+        CloseHandle(hProcess);
+    }
+    return TRUE; // Continue enumeration
 }
 
+// Method to get HWND by process name
+HWND WindowManager::GetHWNDByProcessName(cstr processName) {
+    EnumWindowsData data(processName); // Create data structure
+    EnumWindows(EnumWindowsProc, reinterpret_cast<LPARAM>(&data)); // Pass the data structure
+    return data.hwnd; // Return the found HWND or NULL
+}
 // Helper to find a window in a specified group
 HWND WindowManager::FindWindowInGroup(cstr groupName) {
     auto it = groups.find(groupName);

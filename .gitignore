@@ -2,6 +2,7 @@ build
 bin
 src/file
 .history
+.cache
 exc/bin
 exc/build
 file

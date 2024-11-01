@@ -81,6 +81,14 @@ int main() {
     wm.All(); // List all open windows
     IO io;
 
+    std::string keyName = "Space";
+    std::string mode = "P";
+
+    // Get key state 
+    int state = io.GetState(keyName, mode);
+    std::cout << "Key state: " << (state ? "Pressed" : "Released") << std::endl;
+
+
     // Run tests
     testSend(io);
     testControlSend(io);
