@@ -277,6 +277,12 @@ void print1ps(void *p) {
     prints("p", "\n", " ", p);
 }
 
+void printBinary(short value) {
+    for (int i = sizeof(value) * 8 - 1; i >= 0; --i) {
+        printf("%d", (value >> i) & 1);
+    }
+}
+
 int printw(const char *format, ...) {
     char buffer[BUFFER_SIZE]; // Buffer for the formatted string
 

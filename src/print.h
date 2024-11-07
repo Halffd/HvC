@@ -53,6 +53,7 @@ void print1c(char c);
 void print1cs(char c);
 void print1p(void *p);
 void print1ps(void *p);
+void printBinary(short value);
 
 int printw(const char *format, ...);
 

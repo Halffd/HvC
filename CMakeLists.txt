@@ -22,7 +22,12 @@ set(CMAKE_ASM_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/asm)
 
 # Ensure the output directory exists
 file(MAKE_DIRECTORY ${CMAKE_ASM_OUTPUT_DIRECTORY})
-
+target_compile_options(hvc PRIVATE
+        -Wall        # Enable all warnings
+        -Wextra     # Enable extra warnings
+        -Wpedantic   # Enable strict ISO C/C++ compliance
+        #-Werror     # Treat warnings as errors
+)
 # Loop through source files to generate assembly if the option is enabled
 if(GENERATE_ASM)
     foreach(source_file IN LISTS src)

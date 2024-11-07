@@ -228,11 +228,6 @@ void IO::HandleKeyAction(cstr action, cstr keyName) {
         keybd_event(virtualKey, 0, KEYEVENTF_KEYUP, 0);
     }
 }
-void printBinary(short value) {
-    for (int i = sizeof(value) * 8 - 1; i >= 0; --i) {
-        printf("%d", (value >> i) & 1);
-    }
-}
 int IO::GetState(cstr keyName, cstr mode) {
     // Define the virtual key code
     int virtualKey = 0;
@@ -243,60 +238,7 @@ int IO::GetState(cstr keyName, cstr mode) {
     // Retrieve the state using GetAsyncKeyState
     if (mode.empty() || mode == "P") {
         // Physical state
-        short state = GetAsyncKeyState(virtualKey);
-            
-            // Print the state in hexadecimal
-            printf("Key State (Hex): 0x%04X\n", state);
-            
-            // Print the state in binary
-            printf("Key State (Binary): ");
-            printBinary(state);
-            printf("\n");
-
-            // Bitwise operations
-            short and1 = state & 0x8;
-            short and2 = state & 0x8;
-            short and3 = state & 0x80;
-            short and4 = state & 0x8000;
-            short and5 = state & 0x800;
-            short and6 = state & 0x0001;
-            short and7 = state & 0x1;
-            short and8 = state & virtualKey;
-
-            // Print results of bitwise operations in hexadecimal and binary
-            printf("and (0x8) (Hex): 0x%04X, (Binary): ", and1);
-            printBinary(and1);
-            printf("\n");
-
-            printf("and2 (0x8) (Hex): 0x%04X, (Binary): ", and2);
-            printBinary(and2);
-            printf("\n");
-
-            printf("and3 (0x80) (Hex): 0x%04X, (Binary): ", and3);
-            printBinary(and3);
-            printf("\n");
-
-            printf("and4 (0x8000) (Hex): 0x%04X, (Binary): ", and4);
-            printBinary(and4);
-            printf("\n");
-
-            printf("and5 (0x800) (Hex): 0x%04X, (Binary): ", and5);
-            printBinary(and5);
-            printf("\n");
-
-            printf("and6 (0x0001) (Hex): 0x%04X, (Binary): ", and6);
-            printBinary(and6);
-            printf("\n");
-
-            printf("and7 (0x1) (Hex): 0x%04X, (Binary): ", and7);
-            printBinary(and7);
-            printf("\n");
-
-            printf("and8 (virtualKey) (Hex): 0x%04X, (Binary): ", and8);
-            printBinary(and8);
-            printf("\n");
-
-            return (state & 0x8) ? 1 : 0;
+        return (GetAsyncKeyState(virtualKey) & 0x8000) ? 1 : 0;
     } else if (mode == "T") {
         // Toggle state for keys like CapsLock, NumLock, ScrollLock
         return (GetKeyState(virtualKey) & 0x1) ? 1 : 0;
