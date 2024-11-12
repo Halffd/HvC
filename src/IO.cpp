@@ -209,22 +209,44 @@ void IO::AssignHotkey(Hotkey hotkey, int id) {
     if (id == -1) {
         id = ++hotkeyCount; // Auto increment if id is not provided
     }
-    if (RegisterHotKey(0, id, hotkey.modifiers, hotkey.key.virtualKey)) {
-        hotkeys[id] = hotkey;
-        lo << "Hotkey registered: " << hotkey.key.name;
-    } else {
-        std::cerr << "Failed to register hotkey: " << GetLastError();
-    }
+    if(hotkey.blockInput){
+        if (RegisterHotKey(0, id, hotkey.modifiers, hotkey.key.virtualKey)) {
+            lo << "Hotkey registered: " << hotkey.key.name;
+        } else {
+            std::cerr << "Failed to register hotkey: " << GetLastError();
+            return;
+        }
+    } 
+    hotkeys[id] = hotkey;
 }
 
+LRESULT CALLBACK IO::KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
+    if (nCode == HC_ACTION) {
+        KBDLLHOOKSTRUCT* pKeyboard = (KBDLLHOOKSTRUCT*)lParam;
+
+        for (const auto& [id, hotkey] : hotkeys) {
+            if(hotkey.blockInput){
+                if (pKeyboard->vkCode == hotkey.key.virtualKey) {
+                    if (hotkey.action) {
+                        hotkey.action(); // Call the associated action
+                    }
+                    break; // Exit after the first match
+                }
+            }
+        }
+    }
+    return CallNextHookEx(keyboardHook, nCode, wParam, lParam);
+}
 void IO::HotkeyListen() {
     MSG msg;
+    keyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, NULL, 0);
+    if (!keyboardHook) {
+        std::cerr << "Failed to install hook: " << GetLastError() << std::endl;
+        return;
+    }
     while (GetMessage(&msg, 0, 0, 0)) {
         if (msg.message == WM_HOTKEY && hotkeys.count(msg.wParam)) {
             Hotkey hotkey = hotkeys[msg.wParam];
-            if (hotkey.blockInput) {
-                // Blocking input is specific to context
-            }
             if (hotkey.action) {
                 hotkey.action();
             }
@@ -232,6 +254,7 @@ void IO::HotkeyListen() {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
+    UnhookWindowsHookEx(keyboardHook);
 }
 
 int IO::ParseModifiers(str str) {

@@ -24,6 +24,8 @@ struct Hotkey {
 class IO {
 public:
     wID ioWindow;
+    static HHOOK keyboardHook;
+    static LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
 
     IO();
     void Send(cstr keys);
