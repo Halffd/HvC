@@ -1,8 +1,22 @@
-#include "util.h"
+#include "Util.hpp"
+#include <algorithm>
+#include <cctype>
+
+#ifndef _WIN32
+// Custom strdup implementation for Linux
+char* strdup(const char *s) {
+    if (!s) return NULL;
+    size_t len = strlen(s) + 1; // +1 for the null terminator
+    char *copy = (char *)malloc(len);
+    if (!copy) return NULL; // Allocation failed
+    strcpy(copy, s);
+    return copy;
+}
+#endif
 
 // Function to get a substring
 char* substring(const char *str, int start, int end) {
-    if (start < 0 || end > strlen(str) || start > end) {
+    if (start < 0 || end > static_cast<int>(strlen(str)) || start > end) {
         return NULL; // Invalid indices
     }
 
@@ -14,6 +28,7 @@ char* substring(const char *str, int start, int end) {
     sub[len] = '\0'; // Null-terminate the substring
     return sub;
 }
+
 // Function to replace all occurrences of a substring
 char* replace(const char *str, const char *old, const char *replacement) {
     if (!str || !old || !replacement) return NULL;
@@ -46,11 +61,13 @@ char* replace(const char *str, const char *old, const char *replacement) {
     *ptr = '\0'; // Null-terminate the result
     return result;
 }
+
 // Function to find the index of a substring
 int indexOf(const char *str, const char *substr) {
     char *pos = strstr(str, substr);
     return (pos) ? (pos - str) : -1; // Return the index or -1 if not found
 }
+
 // Function to split a string by a delimiter
 char** splitArr(const char *str, const char *delimiter, int *count) {
     // Allocate memory for the array of strings
@@ -62,7 +79,7 @@ char** splitArr(const char *str, const char *delimiter, int *count) {
     // Tokenize the string
     token = strtok(temp, delimiter);
     while (token) {
-        result = realloc(result, sizeof(char*) * (size + 1)); // Resize the array
+        result = static_cast<char**>(realloc(result, sizeof(char*) * (size + 1))); // Resize the array
         result[size] = strdup(token); // Duplicate the token into the array
         size++;
         token = strtok(NULL, delimiter); // Get the next token
@@ -72,6 +89,7 @@ char** splitArr(const char *str, const char *delimiter, int *count) {
     *count = size; // Set the number of tokens found
     return result; // Return the array of tokens
 }
+
 // Function to free the memory allocated for the split result
 void free_split(char **result, int count) {
     for (int i = 0; i < count; i++) {
@@ -79,6 +97,7 @@ void free_split(char **result, int count) {
     }
     free(result); // Free the array of strings
 }
+
 // Function to initialize a StrArray
 StrArray* create_array() {
     StrArray *arr = (StrArray*)malloc(sizeof(StrArray));
@@ -101,7 +120,7 @@ void free_array(StrArray *arr) {
 void append(StrArray *arr, const char *token) {
     if (arr->size >= arr->capacity) {
         arr->capacity *= 2; // Double the capacity
-        arr->tokens = realloc(arr->tokens, arr->capacity * sizeof(char*));
+        arr->tokens = static_cast<char**>(realloc(arr->tokens, arr->capacity * sizeof(char*)));
     }
     arr->tokens[arr->size] = strdup(token); // Duplicate the token
     arr->size++;
@@ -143,7 +162,7 @@ void del(StrArray *arr, int index) {
     }
 }
 
-// Function to split a string by a delimiter
+// Function to split a string by a delimiter (StrArray version)
 StrArray* split(const char *str, const char *delimiter) {
     StrArray *result = create_array();
     char *temp = strdup(str); // Create a modifiable copy of the original string
@@ -167,22 +186,25 @@ char* join(StrArray *arr, const char *delimiter) {
     // Calculate the total length needed for the joined string
     size_t total_length = 0;
     for (int i = 0; i < arr->size; i++) {
-        total_length += strlen(arr->tokens[i]);
-        if (i < arr->size - 1) { // Add delimiter length for all but the last token
-            total_length += strlen(delimiter);
-        }
+        total_length += strlen(arr->tokens[i]) + strlen(delimiter);
     }
+    total_length -= strlen(delimiter); // Exclude the last delimiter
 
-    char *result = (char*)malloc(total_length + 1); // +1 for the null terminator
+    char *result = (char *)malloc(total_length + 1); // +1 for the null terminator
     if (!result) return NULL; // Allocation failed
 
-    // Construct the joined string
-    result[0] = '\0'; // Initialize to an empty string
+    result[0] = '\0'; // Start with an empty string
     for (int i = 0; i < arr->size; i++) {
-        strcat(result, arr->tokens[i]); // Append the token
-        if (i < arr->size - 1) { // Append delimiter for all but the last token
-            strcat(result, delimiter);
-        }
+        strcat(result, arr->tokens[i]); // Append each token
+        if (i < arr->size - 1) strcat(result, delimiter); // Append the delimiter
     }
+
     return result; // Return the joined string
+}
+
+// Function to convert a string to lowercase
+str ToLower(cstr txt) {
+    str lowerStr = txt;
+    std::transform(lowerStr.begin(), lowerStr.end(), lowerStr.begin(), [](unsigned char c) { return std::tolower(c); });
+    return lowerStr;
 }

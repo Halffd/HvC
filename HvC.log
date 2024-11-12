@@ -318,3 +318,24 @@
 31/10/2024 16:18:42 [INFO] Ctrl+Space
 31/10/2024 16:18:42 [INFO] Testing AddHotkey function...
 
+12/11/2024 00:39:47 [INFO] Hello
+12/11/2024 00:39:47 [INFO] Testing ControlSend function...
+
+12/11/2024 00:39:47 [INFO] Testing RegisterHotkey function...
+
+12/11/2024 00:39:47 [INFO] Hotkey registered: 
+12/11/2024 00:39:47 [INFO] Ctrl+Space
+12/11/2024 00:39:47 [INFO] Testing AddHotkey function...
+
+12/11/2024 00:39:47 [INFO] Hotkey registered: 
+12/11/2024 00:39:47 [INFO] a
+12/11/2024 00:39:47 [INFO] Hotkey registered: 
+12/11/2024 00:39:47 [INFO] f2
+12/11/2024 00:39:47 [INFO] Hotkey registered: 
+12/11/2024 00:39:47 [INFO] ^+x
+12/11/2024 00:39:47 [INFO] Hotkey registered: 
+12/11/2024 00:39:47 [INFO] +c
+12/11/2024 00:39:47 [INFO] Hotkey registered: 
+12/11/2024 00:39:47 [INFO] #-
+12/11/2024 00:39:50 [INFO] Shift+c activated!
+

@@ -14,7 +14,7 @@ add_executable(hvc ${src})
 include_directories("${CMAKE_SOURCE_DIR}/include")
 
 # Set output properties 
-set_target_properties(hvc PROPERTIES OUTPUT_NAME c)
+set_target_properties(hvc PROPERTIES OUTPUT_NAME HvC)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin")
 
 # Set the output directory for the assembly files

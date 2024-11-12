@@ -23,17 +23,20 @@ struct Hotkey {
 // IO class declaration
 class IO {
 public:
+    wID ioWindow;
+
+    IO();
     void Send(cstr keys);
     void ControlSend(cstr control, cstr keys);
-    void RegisterHotkey(Hotkey hotkey, int id = -1);
+    void AssignHotkey(Hotkey hotkey, int id = -1);
     void AddHotkey(cstr hotkeyStr, std::function<void()> action, bool blockInput = false, int id = -1);
     void HotkeyListen();
     void SetTimer(int milliseconds, const std::function<void()>& func);
-    void MsgBox(cstr message);
+    static void MsgBox(cstr message);
     void HandleKeyAction(cstr action, cstr keyName);
     static int GetState(const std::string& keyName, const std::string& mode = "T");
     static int StringToVirtualKey(str keyName);
-    static str ToLower(cstr str);
+    static void removeSpecialCharacters(str& keyName);
 private:
     int ParseModifiers(str str);
     void ProcessKeyCombination(cstr keys);

@@ -69,7 +69,20 @@ Logger& Logger::operator<<(const std::string& message) {
     log(message, true, LogLevel::INFO);
     return *this;
 }
-
+Logger& Logger::operator<<(int64_t value) {
+    log(std::to_string(value), true, LogLevel::INFO);
+    return *this;
+}
+// Specialization for std::endl
+Logger& Logger::operator<<(std::ostream& (*manip)(std::ostream&)) {
+    // Log the manipulator as a string
+    if (manip == static_cast<std::ostream& (*)(std::ostream&)>(std::endl)) {
+        log("\n", true, LogLevel::INFO);
+    } else {
+        log("Unknown manipulator", true, LogLevel::INFO);
+    }
+    return *this;
+}
 Logger& Logger::operator<<(const char* message) {
     log(std::string(message), true, LogLevel::INFO);
     return *this;

@@ -4,7 +4,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdlib.h>
+#include <algorithm>
+#include <cctype>
+#include "types.hpp"
 
 // Function to get a substring
 char* substring(const char *str, int start, int end);
@@ -51,5 +53,7 @@ StrArray* split(const char *str, const char *delimiter);
 
 // Function to join an array of strings into a single string with a delimiter
 char* join(StrArray *arr, const char *delimiter);
+
+str ToLower(cstr txt);
 
 #endif // STRING_UTILS_H
