@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <winuser.h>
 
+HHOOK IO::keyboardHook = NULL;
+std::unordered_map<int, Hotkey> IO::hotkeys; // Map to store hotkeys by ID
 IO::IO(){
     //ioWindow = WindowManager::NewWindow("IO");
 }
@@ -225,7 +227,7 @@ LRESULT CALLBACK IO::KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
         KBDLLHOOKSTRUCT* pKeyboard = (KBDLLHOOKSTRUCT*)lParam;
 
         for (const auto& [id, hotkey] : hotkeys) {
-            if(hotkey.blockInput){
+            if(!hotkey.blockInput){
                 if (pKeyboard->vkCode == hotkey.key.virtualKey) {
                     if (hotkey.action) {
                         hotkey.action(); // Call the associated action

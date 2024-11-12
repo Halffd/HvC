@@ -26,6 +26,7 @@ public:
     wID ioWindow;
     static HHOOK keyboardHook;
     static LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
+    static std::unordered_map<int, Hotkey> hotkeys; // Map to store hotkeys by ID
 
     IO();
     void Send(cstr keys);
@@ -44,7 +45,6 @@ private:
     void ProcessKeyCombination(cstr keys);
     
     int hotkeyCount = 0; // Incrementing identifier for hotkeys
-    std::unordered_map<int, Hotkey> hotkeys; // Map to store hotkeys by ID
 };
 
 #endif // IO_HPP
