@@ -9,7 +9,7 @@
 #include <algorithm>
 #include "WindowManager.hpp"
 // Structure to hold hotkey information
-struct Hotkey {
+struct HotKey {
     int modifiers;
     struct {
         int virtualKey;
@@ -17,6 +17,8 @@ struct Hotkey {
     } key;
     std::function<void()> action; // Action to perform on hotkey activation
     bool blockInput; // Whether to block input when the hotkey is activated
+    bool suspend;
+    bool enabled;
 };
 
 
@@ -26,13 +28,14 @@ public:
     wID ioWindow;
     static HHOOK keyboardHook;
     static LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
-    static std::unordered_map<int, Hotkey> hotkeys; // Map to store hotkeys by ID
-
+    static std::unordered_map<int, HotKey> hotkeys; // Map to store hotkeys by ID
+    bool hotkeyEnabled = true;
     IO();
     void Send(cstr keys);
     void ControlSend(cstr control, cstr keys);
-    void AssignHotkey(Hotkey hotkey, int id = -1);
-    void AddHotkey(cstr hotkeyStr, std::function<void()> action, bool blockInput = false, int id = -1);
+    void AssignHotkey(HotKey hotkey, int id = -1);
+    void Hotkey(cstr hotkeyStr, std::function<void()> action = nullptr, int id = -1);
+    bool Suspend(int status = -1);
     void HotkeyListen();
     void SetTimer(int milliseconds, const std::function<void()>& func);
     static void MsgBox(cstr message);

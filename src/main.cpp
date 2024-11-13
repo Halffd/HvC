@@ -3,6 +3,7 @@
 #include <iostream>
 #include <thread>
 
+IO io;
 void testSend(IO& io) {
     lo << "Testing Send function...\n";
     io.Send("Hello");
@@ -22,26 +23,38 @@ void testRegisterHotkey(IO& io) {
         MOD_CONTROL, {VK_SPACE,
          "Ctrl+Space"}, []() {
         lo << "Ctrl+Space activated!\n";
-    }, true});
+    }, true, true, true});
 }
 
-void testAddHotkey(IO& io) {
-    lo << "Testing AddHotkey function...\n";
-    io.AddHotkey("a", []() {
+void testHotkey(IO& io) {
+    lo << "Testing Hotkey function...\n";
+    io.Hotkey("a", []() {
         lo << "a activated!\n";
-    }, true);
-    io.AddHotkey("f2", []() {
+    });
+    io.Hotkey("f2", [&io]() {
         lo << "f2 activated!\n";
-    }, true);
-    io.AddHotkey("^+x", []() {
+        io.Hotkey("-");
+        lo << "- deactivated !\n";
+    });
+    io.Hotkey("^+x", [&io]() {
         lo << "Ctrl+Shift+x activated!\n";
-    }, true);
-    io.AddHotkey("+c", []() {
+        io.Hotkey("a");
+        lo << "a deactivated !\n";
+    });
+    io.Hotkey("&+c", [&io]() {
         lo << "Shift+c activated!\n";
-    }, false);
-    io.AddHotkey("#-", []() {
+        io.Suspend();
+    });
+    io.Hotkey("*#-", []() {
         IO::MsgBox("Win+- activated!\n");
-    }, false);
+    });
+    io.Hotkey("*-", []() {
+        IO::MsgBox("- activated!\n");
+    });
+    
+    io.Hotkey("!Esc", []() {
+        exit(0);
+    });
 }
 
 void testHotkeyListen(IO& io) {
@@ -109,7 +122,6 @@ int main() {
     }
 
     //wm.All(); // List all open windows
-    IO io;
 
     std::string keyName = "Space";
     std::string mode = "P";
@@ -122,7 +134,7 @@ int main() {
     // testSend(io);
     testControlSend(io);
     testRegisterHotkey(io);
-    testAddHotkey(io);
+    testHotkey(io);
     // testSetTimer(io);
     // testMsgBox(io);
     testHotkeyListen(io);

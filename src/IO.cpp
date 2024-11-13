@@ -6,13 +6,13 @@
 #include <winuser.h>
 
 HHOOK IO::keyboardHook = NULL;
-std::unordered_map<int, Hotkey> IO::hotkeys; // Map to store hotkeys by ID
+std::unordered_map<int, HotKey> IO::hotkeys; // Map to store hotkeys by ID
 IO::IO(){
     //ioWindow = WindowManager::NewWindow("IO");
 }
 void IO::removeSpecialCharacters(str& keyName) {
     // Define the characters to remove
-    const std::string charsToRemove = "^+!#";
+    const std::string charsToRemove = "^+!#*&";
 
     // Remove characters
     keyName.erase(std::remove_if(keyName.begin(), keyName.end(),
@@ -29,6 +29,7 @@ int IO::StringToVirtualKey(str keyName) {
     }
     keyName = ToLower(keyName);
     // Map string names to virtual key codes
+    if (keyName == "esc") return VK_ESCAPE;
     if (keyName == "home") return VK_HOME;
     if (keyName == "end") return VK_END;
     if (keyName == "pgup") return VK_PRIOR;
@@ -170,18 +171,93 @@ void IO::ProcessKeyCombination(cstr keys) {
     if (modifiers & MOD_SHIFT) keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, 0);
 }
 
-void IO::AddHotkey(cstr hotkeyStr, std::function<void()> action, bool blockInput, int id) {
+bool IO::Suspend(int status) {
+    if (status == -1) {
+        hotkeyEnabled = !hotkeyEnabled; // Toggle state
+    } else {
+        hotkeyEnabled = (status != 0); // Set state based on status
+    }
+
+    if (hotkeyEnabled) {
+        // Hotkeys are enabled
+        std::cout << "Hotkeys enabled." << std::endl;
+        // Optionally re-register hotkeys if previously unregistered
+        for (auto& [id, hotkey] : hotkeys) {
+            if (!hotkey.suspend) {
+                if(hotkey.blockInput){
+                    AssignHotkey(hotkey, id);
+                } else {
+                    hotkey.enabled = true;
+                }
+            } else {
+                hotkey.enabled = true;
+            }
+        }
+    } else {
+        // Hotkeys are disabled
+        std::cout << "Hotkeys disabled." << std::endl;
+        // Unregister hotkeys
+        for (auto& [id, hotkey] : hotkeys) {
+            if(!hotkey.suspend){
+                if (hotkey.blockInput) {
+                    UnregisterHotKey(0, id);
+                }
+                hotkey.enabled = false;
+            }
+        }
+    }
+    return hotkeyEnabled;
+}
+void IO::Hotkey(cstr hotkeyStr, std::function<void()> action, int id) {
     str keyStr = hotkeyStr;
+    str keys = hotkeyStr;
     int modifiers = ParseModifiers(keyStr);
     int virtualKey = StringToVirtualKey(keyStr);
-    
+    bool block = true;
+    bool isSuspend = false;
+    if(hotkeyStr.find("*") != str::npos){
+        block = false;
+        keys.erase(keys.find("*"), 1);
+    }
+    if(keys.find("&") != str::npos){
+        isSuspend = true;
+        keys.erase(keys.find("&"), 1);
+    }
+    HotKey hotkey = {
+        modifiers,
+        {
+            virtualKey,
+            keys
+        },
+        action,
+        block,
+        isSuspend,
+        true
+    };
+
     if (virtualKey) {
-        AssignHotkey({modifiers, {virtualKey, keyStr}, action, blockInput}, id);
+        if (action) {
+            // Assign hotkey if action is provided
+            AssignHotkey(hotkey, id);
+        } else {
+            // Action is nullptr, find and unregister by key name
+            for (auto it = hotkeys.begin(); it != hotkeys.end(); ++it) {
+                if (it->second.key.name == hotkeyStr) {
+                    if(it->second.blockInput){
+                        UnregisterHotKey(0, it->first); // Unregister the hotkey
+                    }
+                    it->second.enabled = false;
+                    // hotkeys.erase(it); // Remove from the map
+                    std::cout << "Hotkey unregistered: " << hotkeyStr << std::endl;
+                    return; // Exit after unregistering
+                }
+            }
+            std::cerr << "Hotkey not found for unregistration: " << hotkeyStr << std::endl;
+        }
     } else {
-        std::cerr << "Invalid key name: " << keyStr;
+        std::cerr << "Invalid key name: " << keyStr << std::endl;
     }
 }
-
 void IO::ControlSend(cstr control, cstr keys) {
     HWND hwnd = WindowManager::Find(control);
     if (hwnd) {
@@ -207,7 +283,7 @@ void IO::SetTimer(int milliseconds, const std::function<void()>& func) {
 void IO::MsgBox(cstr message) {
     MessageBoxA(NULL, message.c_str(), "Message", MB_OK);
 }
-void IO::AssignHotkey(Hotkey hotkey, int id) {
+void IO::AssignHotkey(HotKey hotkey, int id) {
     if (id == -1) {
         id = ++hotkeyCount; // Auto increment if id is not provided
     }
@@ -219,20 +295,40 @@ void IO::AssignHotkey(Hotkey hotkey, int id) {
             return;
         }
     } 
-    hotkeys[id] = hotkey;
+    hotkey.enabled = true;
+    if (hotkeys.find(id) == hotkeys.end()) {
+        hotkeys[id] = hotkey;
+    }
 }
 
+
 LRESULT CALLBACK IO::KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
-    if (nCode == HC_ACTION) {
+    if (nCode == HC_ACTION && wParam == WM_KEYDOWN) {
         KBDLLHOOKSTRUCT* pKeyboard = (KBDLLHOOKSTRUCT*)lParam;
 
+        // Detect the state of modifier keys
+        bool shiftPressed = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+        bool ctrlPressed = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+        bool altPressed = (GetKeyState(VK_MENU) & 0x8000) != 0;
+        bool winPressed = (GetKeyState(VK_LWIN) & 0x8000) != 0 || (GetKeyState(VK_RWIN) & 0x8000) != 0;
         for (const auto& [id, hotkey] : hotkeys) {
-            if(!hotkey.blockInput){
-                if (pKeyboard->vkCode == hotkey.key.virtualKey) {
-                    if (hotkey.action) {
-                        hotkey.action(); // Call the associated action
+            if (!hotkey.blockInput && hotkey.enabled) {
+                // Check if the virtual key matches and modifiers are valid
+                if (pKeyboard->vkCode == static_cast<DWORD>(hotkey.key.virtualKey)) {
+                    // Check if the required modifiers are pressed
+                    bool modifiersMatch =
+                        ((hotkey.modifiers & MOD_SHIFT) ? shiftPressed : true) &&
+                        ((hotkey.modifiers & MOD_CONTROL) ? ctrlPressed : true) &&
+                        ((hotkey.modifiers & MOD_ALT) ? altPressed : true) &&
+                        ((hotkey.modifiers & MOD_WIN) ? winPressed : true); // Check Windows key
+
+                    if (modifiersMatch) {
+                        if (hotkey.action) {
+                            std::cout << "Action from non-blocking callback for " << hotkey.key.name << "\n";
+                            hotkey.action(); // Call the associated action
+                        }
+                        break; // Exit after the first match
                     }
-                    break; // Exit after the first match
                 }
             }
         }
@@ -248,8 +344,9 @@ void IO::HotkeyListen() {
     }
     while (GetMessage(&msg, 0, 0, 0)) {
         if (msg.message == WM_HOTKEY && hotkeys.count(msg.wParam)) {
-            Hotkey hotkey = hotkeys[msg.wParam];
+            HotKey hotkey = hotkeys[msg.wParam];
             if (hotkey.action) {
+                std::cout << "Actiom from blocking GetMessage for " << hotkey.key.name << "\n";
                 hotkey.action();
             }
         }
@@ -294,7 +391,7 @@ void IO::HandleKeyAction(cstr action, cstr keyName) {
                 keybd_event(virtualKey, 0, 0, 0); // Press if released
             }
         } else {
-            keybd_event(virtualKey, 0, NULL, 0);
+            keybd_event(virtualKey, 0, 0, 0);
         }
     }
 }
