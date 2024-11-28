@@ -7,7 +7,6 @@
 #include <vector>
 #include <unordered_map>
 #include <array>
-#include <windows.h>
 #include "Logger.h"
 
 class Printer {

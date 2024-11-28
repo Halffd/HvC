@@ -3,7 +3,6 @@
 
 #include <cstddef>
 #include <iostream>
-#include <windows.h>
 #include <sstream>
 #include <vector>
 #include <thread>

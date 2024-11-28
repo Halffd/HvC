@@ -12,6 +12,7 @@
     #include <windows.h>
     #include <process.h>
     #include <psapi.h>
+    #include <winuser.h>
     #define WINDOWS 1
     #define OS_NAME "Windows"
     using wID = HWND;
@@ -26,6 +27,16 @@
     // Macros to retrieve desktop environment and window manager
     #define DESKTOP_ENVIRONMENT (getenv("XDG_CURRENT_DESKTOP") ? getenv("XDG_CURRENT_DESKTOP") : "Unknown")
     #define WINDOW_MANAGER (getenv("WM_NAME") ? getenv("WM_NAME") : "Unknown") // WM_NAME is not standard; adjust as needed
+    #if defined(X11)
+    #include <X11/Xlib.h>
+    #include <X11/keysym.h>
+    #include <X11/extensions/XTest.h>
+    #include <unistd.h>
+    #else
+    #include <wayland-client.h>
+    #include <wayland-cursor.h>
+    #include <xkbcommon/xkbcommon.h>
+    #endif
     using wID = void*; // Use void* or an appropriate type for Linux
     using pID = pid_t; // Example type for process ID
 #elif defined(__APPLE__)
@@ -34,7 +45,7 @@
     #define OS_NAME "macOS"
     #define DESKTOP_ENVIRONMENT "Aqua" // Placeholder for macOS
     #define WINDOW_MANAGER "Unknown" // Placeholder for macOS
-    using wID = void*; // Use void* or an appropriate type for Linux
+    using wID = void*; // Use void* or an appropriate type for macOS
     using pID = pid_t; // Example type for process ID
 #else
     #error "Unsupported platform"
@@ -43,6 +54,6 @@
 using str = std::string; // Alias for string type
 using cstr = const str&; // Alias for const string reference
 using group = std::map<str, std::vector<str>>; // Alias for a map of string to vector of strings
-using null = decltype(NULL); // Alias for null pointer type
+using null = decltype(nullptr); // Use nullptr instead of NULL for better type safety
 
 #endif // TYPES_H

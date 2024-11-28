@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.28.1)
 project(hvc CXX)
 
 # Create a boolean option for assembly generation
-option(GENERATE_ASM "Generate assembly files" ON)
+option(GENERATE_ASM "Generate assembly files" OFF)
 
 file(GLOB_RECURSE source_files "src/*.cpp")
 file(GLOB_RECURSE source_c_files "src/*.c")
@@ -20,7 +20,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin")
 # Set the output directory for the assembly files
 set(CMAKE_ASM_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/asm)
 
-# Ensure the output directory exists
+# Ens`ure the output directory exists
 file(MAKE_DIRECTORY ${CMAKE_ASM_OUTPUT_DIRECTORY})
 target_compile_options(hvc PRIVATE
         -Wall        # Enable all warnings
