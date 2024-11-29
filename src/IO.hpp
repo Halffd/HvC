@@ -3,51 +3,54 @@
 
 #include <iostream>
 #include <string>
-#include <thread>
 #include <functional>
 #include <unordered_map>
-#include <algorithm>
+#include <thread>
+#include <chrono>
 #include "WindowManager.hpp"
-// Structure to hold hotkey information
+
 struct HotKey {
-    int modifiers;
+    int modifiers; // Modifier mask (Ctrl, Alt, Shift, etc.)
     struct {
         int virtualKey;
         std::string name;
     } key;
-    std::function<void()> action; // Action to perform on hotkey activation
-    bool blockInput; // Whether to block input when the hotkey is activated
+    std::function<void()> action; // Action to perform on activation
+    bool blockInput;
     bool suspend;
     bool enabled;
 };
 
-
-// IO class declaration
 class IO {
 public:
-    wID ioWindow;
-    static HHOOK keyboardHook;
-    static LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
-    static std::unordered_map<int, HotKey> hotkeys; // Map to store hotkeys by ID
-    bool hotkeyEnabled = true;
+    static std::unordered_map<int, HotKey> hotkeys;
     IO();
-    void Send(cstr keys);
-    void ControlSend(cstr control, cstr keys);
+    void Send(const std::string& keys);
+    void ControlSend(const std::string& control, const std::string& keys);
     void AssignHotkey(HotKey hotkey, int id = -1);
-    void Hotkey(cstr hotkeyStr, std::function<void()> action = nullptr, int id = -1);
+    void Hotkey(const std::string& hotkeyStr, std::function<void()> action = nullptr, int id = -1);
     bool Suspend(int status = -1);
     void HotkeyListen();
     void SetTimer(int milliseconds, const std::function<void()>& func);
-    static void MsgBox(cstr message);
-    void HandleKeyAction(cstr action, cstr keyName);
-    static int GetState(const std::string& keyName, const std::string& mode = "T");
+    void MsgBox(const std::string& message);
+    void HandleKeyAction(const std::string& action, const std::string& keyName);
+    int GetState(const std::string& keyName, const std::string& mode = "T");
     static int StringToVirtualKey(str keyName);
-    static void removeSpecialCharacters(str& keyName);
+    static void removeSpecialCharacters(std::string& keyName);
+
 private:
-    int ParseModifiers(str str);
-    void ProcessKeyCombination(cstr keys);
-    
-    int hotkeyCount = 0; // Incrementing identifier for hotkeys
+    void ProcessKeyCombination(const std::string& keys);
+    int ParseModifiers(std::string str);
+    void SendX11Key(const std::string& keyName, bool press);
+
+    int hotkeyCount = 0;
+    bool hotkeyEnabled = true;
+
+#if defined(__linux__)
+    Display* display;
+#else
+    LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
+#endif
 };
 
 #endif // IO_HPP

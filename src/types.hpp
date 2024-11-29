@@ -22,20 +22,22 @@
 #elif defined(__linux__)
     #include <unistd.h>
     #include <pwd.h>
-    #define LINUX 2
+    #define LINUX
     #define OS_NAME "Linux"
     // Macros to retrieve desktop environment and window manager
     #define DESKTOP_ENVIRONMENT (getenv("XDG_CURRENT_DESKTOP") ? getenv("XDG_CURRENT_DESKTOP") : "Unknown")
     #define WINDOW_MANAGER (getenv("WM_NAME") ? getenv("WM_NAME") : "Unknown") // WM_NAME is not standard; adjust as needed
-    #if defined(X11)
-    #include <X11/Xlib.h>
-    #include <X11/keysym.h>
-    #include <X11/extensions/XTest.h>
-    #include <unistd.h>
-    #else
+    #ifdef WAYLAND
     #include <wayland-client.h>
     #include <wayland-cursor.h>
     #include <xkbcommon/xkbcommon.h>
+    #else
+    #include <X11/Xlib.h>   
+    #include <X11/Xutil.h>
+    #include <X11/keysym.h>
+    #include <X11/extensions/XTest.h>
+    #include <X11/XKBlib.h>
+    #include <X11/XF86keysym.h>
     #endif
     using wID = void*; // Use void* or an appropriate type for Linux
     using pID = pid_t; // Example type for process ID
