@@ -739,16 +739,17 @@ void IO::HotkeyListen()
     while (true)
     {
         XNextEvent(display, &event);
-
+        lo << event.type;
         if (event.type == KeyPress || event.type == KeyRelease)
         {
             XKeyEvent *keyEvent = reinterpret_cast<XKeyEvent *>(&event);
 
+            KeySym keysym = XLookupKeysym(reinterpret_cast<XKeyEvent *>(keyEvent), 0); // Translate keycode to KeySym
+            lo << (int) keysym;
             for (const auto &[id, hotkey] : hotkeys)
             {
                 if (hotkey.enabled)
                 {
-                    KeySym keysym = XLookupKeysym(reinterpret_cast<XKeyEvent *>(keyEvent), 0); // Translate keycode to KeySym
                     if ((KeySym)hotkey.key.virtualKey == keysym)
                     {
                         // Key matched; execute hotkey action

@@ -245,6 +245,7 @@ wID WindowManager::GetwIDByProcessName(cstr processName) {
                     std::ostringstream procPath;
                     procPath << "/proc/" << windowPID << "/comm";
                     std::ifstream procFile(procPath.str());
+                    std::cout << "File path: " << procPath.str() << "\n";
                     if (procFile.is_open()) {
                         std::string procName;
                         std::getline(procFile, procName);
@@ -662,6 +663,10 @@ int64_t WindowManager::Run(str path, T method, str windowState, str command, int
     }
 
 #else // Linux/Unix implementation
+    if(!command.empty()){
+        path += " " + command;
+    }
+    lo << path;
     pid_t pid;
     int status;
 
@@ -795,6 +800,7 @@ int64_t WindowManager::Run(str path, T method, str windowState, str command, int
         break;
     }
 
+    case ProcessMethod::Shell:
     case ProcessMethod::SystemCall:
     {
         status = system(path.c_str());
@@ -848,27 +854,28 @@ int64_t WindowManager::Terminal(cstr command, bool canPause, str windowState, bo
     fullCommand = command;
     if (canPause)
     {
-        fullCommand += "; read -p 'Press enter to continue...'"; // Pause on Linux
+        fullCommand += "; read"; // Pause on Linux
     }
+    ProcessMethod method = ProcessMethod::Shell;
 
     if (ToLower(terminal) == "gnome-terminal") {
         fullCommand = continueExecution ? "-e '" + fullCommand + "' --wait" : "-e '" + fullCommand + "'";
-        return Run("gnome-terminal", 0, windowState, fullCommand, -1);
+        return Run("gnome-terminal", method, windowState, fullCommand, -1);
     } else if (ToLower(terminal) == "konsole") {
         fullCommand = continueExecution ? "-e " + globalShell + " -c '" + fullCommand + "; exec " + globalShell + "'" : "-e " + globalShell + " -c '" + fullCommand + "'";
-        return Run("konsole", 0, windowState, fullCommand, -1);
+        return Run("konsole", method, windowState, fullCommand, -1);
     } else if (ToLower(terminal) == "xfce4-terminal") {
         fullCommand = continueExecution ? "-e " + globalShell + " -c '" + fullCommand + "; exec " + globalShell + "'" : "-e " + globalShell + " -c '" + fullCommand + "'";
-        return Run("xfce4-terminal", 0, windowState, fullCommand, -1);
+        return Run("xfce4-terminal", method, windowState, fullCommand, -1);
     } else if (ToLower(terminal) == "xterm") {
         fullCommand = continueExecution ? "-e " + globalShell + " -c '" + fullCommand + "; exec " + globalShell + "'" : "-e " + globalShell + " -c '" + fullCommand + "'";
-        return Run("xterm", 0, windowState, fullCommand, -1);
+        return Run("xterm", method, windowState, fullCommand, -1);
     } else if (ToLower(terminal) == "lxterminal") {
         fullCommand = continueExecution ? "-e " + globalShell + " -c '" + fullCommand + "; exec " + globalShell + "'" : "-e " + globalShell + " -c '" + fullCommand + "'";
-        return Run("lxterminal", 0, windowState, fullCommand, -1);
+        return Run("lxterminal", method, windowState, fullCommand, -1);
     } else if (ToLower(terminal) == "tmux") {
         fullCommand = continueExecution ? "new-session -d '" + fullCommand + "'; attach" : "new-session -d '" + fullCommand + "'; attach";
-        return Run("tmux", 0, windowState, fullCommand, -1);
+        return Run("tmux", method, windowState, fullCommand, -1);
     } else {
         // Handle default case or error
         return -1; // or another error handling
