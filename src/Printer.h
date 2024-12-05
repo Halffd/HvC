@@ -60,7 +60,9 @@ private:
     void replaceFormatSpecifiers(std::ostringstream& oss, const std::string& format, byte value);
     void replaceFormatSpecifiers(std::ostringstream& oss, const std::string& format, word value);
     void replaceFormatSpecifiers(std::ostringstream& oss, const std::string& format, dword value);
+    #ifdef WINDOWS
     void replaceFormatSpecifiers(std::ostringstream& oss, const std::string& format, HWND hwnd);
+    #endif
 };
 
 #endif // PRINTER_H

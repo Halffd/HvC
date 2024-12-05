@@ -19,11 +19,19 @@ void testControlSend(IO& io) {
 
 void testRegisterHotkey(IO& io) {
     lo << "Testing RegisterHotkey function...\n";
+    #ifdef WINDOWS
     io.AssignHotkey({
         MOD_CONTROL, {VK_SPACE,
          "Ctrl+Space"}, []() {
         lo << "Ctrl+Space activated!\n";
     }, true, true, true});
+    #else
+    io.AssignHotkey({
+        ControlMask, {0x0020,
+         "Ctrl+Space"}, []() {
+        lo << "Ctrl+Space activated!\n";
+    }, true, true, true});
+    #endif
 }
 
 void testHotkey(IO& io) {
@@ -101,8 +109,8 @@ int main() {
     //lo << w.Terminal("streamlink twitch.tv/robcdee best", false, "Hide", false);
     //lo << w.Terminal("ipconfig", true, "Call", true);
     //lo << w.Terminal("py -m IPython", true, "Max", true, "Powershell");
-    //lo << w.Terminal("Write-Host (Get-Date -Format \"dd MMMM yyyy\")", true, "", true, "Powershell");
-    Window wm("exe mpv.exe"); // Initialize with an empty identifier
+    lo << w.Terminal("Write-Host (Get-Date -Format \"dd MMMM yyyy\")", true, "", true, "Powershell");
+    H::Window wm("exe mpv.exe"); // Initialize with an empty identifier
 
     // Example usage of adding groups
     wm.AddGroup("grp", "exe blender.exe");

@@ -20,14 +20,16 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin")
 # Set the output directory for the assembly files
 set(CMAKE_ASM_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/asm)
 
-# Ens`ure the output directory exists
+# Ensure the output directory exists
 file(MAKE_DIRECTORY ${CMAKE_ASM_OUTPUT_DIRECTORY})
+
 target_compile_options(hvc PRIVATE
         -Wall        # Enable all warnings
         -Wextra     # Enable extra warnings
         -Wpedantic   # Enable strict ISO C/C++ compliance
-        #-Werror     # Treat warnings as errors
+        # -Werror     # Treat warnings as errors
 )
+
 # Loop through source files to generate assembly if the option is enabled
 if(GENERATE_ASM)
     foreach(source_file IN LISTS src)
@@ -40,4 +42,33 @@ if(GENERATE_ASM)
         )
         add_custom_target(generate_asm_${source_name} ALL DEPENDS ${CMAKE_ASM_OUTPUT_DIRECTORY}/${source_name}.s)
     endforeach()
+endif()
+
+# Check for Linux-specific libraries
+if(UNIX AND NOT APPLE)
+    message(STATUS "Configuring for Linux...")
+
+    # Find X11 package
+    find_package(X11 REQUIRED)
+    if(X11_FOUND)
+        include_directories(${X11_INCLUDE_DIR})
+        target_link_libraries(hvc ${X11_LIBRARIES} Xtst)
+    else()
+        message(FATAL_ERROR "X11 library not found!")
+    endif()
+
+    # Optionally, find other packages as needed
+    # find_package(AnotherLibrary REQUIRED)
+    # if(AnotherLibrary_FOUND)
+    #     target_link_libraries(hvc AnotherLibrary::AnotherLibrary)
+    # endif()
+
+    # Define any Linux-specific macros
+    target_compile_definitions(hvc PRIVATE LINUX)
+
+    # Include directories for Linux-specific libraries
+    #include_directories("/path/to/linux/include")  # Adjust the path as necessary
+
+    # Optionally, you can set up library paths
+    #link_directories("/path/to/linux/lib")  # Adjust the path as necessary
 endif()

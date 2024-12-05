@@ -32,7 +32,7 @@ public:
     bool Suspend(int status = -1);
     void HotkeyListen();
     void SetTimer(int milliseconds, const std::function<void()>& func);
-    void MsgBox(const std::string& message);
+    static void MsgBox(const std::string& message);
     void HandleKeyAction(const std::string& action, const std::string& keyName);
     int GetState(const std::string& keyName, const std::string& mode = "T");
     static int StringToVirtualKey(str keyName);
@@ -46,9 +46,7 @@ private:
     int hotkeyCount = 0;
     bool hotkeyEnabled = true;
 
-#if defined(__linux__)
-    Display* display;
-#else
+#ifdef WINDOWS
     LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
 #endif
 };

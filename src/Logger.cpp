@@ -69,10 +69,12 @@ Logger& Logger::operator<<(const std::string& message) {
     log(message, true, LogLevel::INFO);
     return *this;
 }
+#ifdef WINDOWS
 Logger& Logger::operator<<(int64_t value) {
     log(std::to_string(value), true, LogLevel::INFO);
     return *this;
 }
+#endif
 // Specialization for std::endl
 Logger& Logger::operator<<(std::ostream& (*manip)(std::ostream&)) {
     // Log the manipulator as a string

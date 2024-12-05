@@ -18,10 +18,13 @@
     #include <sys/wait.h>
     #include <sys/resource.h>
     #include <csignal>
+    extern Display* display;
+    extern cstr globalShell;
 #endif
 
 extern group groups; // Map to store groups
 extern str defaultTerminal;
+#ifdef WINDOWS
 // Struct to hold the window handle and the target process name
 struct EnumWindowsData {
     wID id;
@@ -30,6 +33,7 @@ struct EnumWindowsData {
     EnumWindowsData(const std::string& processName) 
         : id(NULL), targetProcessName(processName) {}
 };
+#endif
 enum class ProcessMethod {
     ContinueExecution,
     WaitForTerminate,
@@ -42,9 +46,17 @@ enum class ProcessMethod {
     Shell,
     Invalid // Added for error handling
 };
-
+#ifdef WINDOWS
 // Callback function for EnumWindows
 BOOL CALLBACK EnumWindowsProc(wID win, LPARAM lParam);
+#endif
+#ifdef __linux__
+enum class DisplayServer {
+    X11,
+    Wayland,
+    Unknown
+};
+#endif
 class WindowManager {
 public:
     pID pid = -1;
@@ -70,9 +82,10 @@ public:
 
     void SetPriority(int priority = 0, pID procID = 0);
 protected:
-    // Function to get the ID of another process
-    static pID GetProcessID(HANDLE otherProcessHandle);
-    
+    static wID FindByClass(cstr className);
+
+    static wID FindByTitle(cstr title);
+
     // Helper to get wID by PID
     static wID GetwIDByPID(pID pid);
 
@@ -88,14 +101,21 @@ protected:
     // Helper to get the value part of the identifier string
     static str GetIdentifierValue(cstr identifier);
 
-    
+    #ifdef WINDOWS
+    // Function to get the ID of another process
+    static pID GetProcessID(HANDLE otherProcessHandle);
     // Function to convert error code to a human-readable message
     static str GetErrorMessage(DWORD errorCode);
+    #endif
 private:
+    static bool InitializeX11();
+
     // Helper function to convert string to ProcessMethod
     static ProcessMethod toMethod(const std::string& method);
 
+    #ifdef WINDOWS
     // Function to create a process and handle common logic
     static bool CreateProcessWrapper(cstr path, cstr command, DWORD creationFlags, STARTUPINFO& si, PROCESS_INFORMATION& pi);
+    #endif
 };
 #endif // WINDOW_MANAGER_HPP

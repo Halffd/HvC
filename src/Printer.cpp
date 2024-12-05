@@ -132,7 +132,9 @@ void Printer::replaceFormatSpecifiers(std::ostringstream& oss, const std::string
     oss << value;
 }
 
+#ifdef WINDOWS
 // HWND type simulation (using void pointer for demonstration)
 void Printer::replaceFormatSpecifiers(std::ostringstream& oss, const std::string& format, HWND hwnd) {
     oss << hwnd; // Print HWND as pointer address
 }
+#endif

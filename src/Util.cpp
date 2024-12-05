@@ -2,17 +2,6 @@
 #include <algorithm>
 #include <cctype>
 
-#ifndef _WIN32
-// Custom strdup implementation for Linux
-char* strdup(const char *s) {
-    if (!s) return NULL;
-    size_t len = strlen(s) + 1; // +1 for the null terminator
-    char *copy = (char *)malloc(len);
-    if (!copy) return NULL; // Allocation failed
-    strcpy(copy, s);
-    return copy;
-}
-#endif
 
 // Function to get a substring
 char* substring(const char *str, int start, int end) {
@@ -64,7 +53,7 @@ char* replace(const char *str, const char *old, const char *replacement) {
 
 // Function to find the index of a substring
 int indexOf(const char *str, const char *substr) {
-    char *pos = strstr(str, substr);
+    const char *pos = strstr(str, substr);
     return (pos) ? (pos - str) : -1; // Return the index or -1 if not found
 }
 

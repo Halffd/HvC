@@ -2,47 +2,44 @@
 #define WINDOW_HPP
 
 #include "WindowManager.hpp"
+#include "Rect.hpp"
 
-class Window : public WindowManager {
-public:
-    wID id;
+namespace H {
+    class Window : public WindowManager {
+    public:
+        wID id;
 
-    Window(cstr identifier, const int method = 1);
+        #ifdef __linux__
+        static DisplayServer displayServer;
+        #endif
 
-    // Find window using method 2
-    wID Find2(cstr identifier, cstr type = "title");
+        Window(cstr identifier, const int method = 1);
 
-    // Template function to find a window based on different identifiers
-    template<typename T>
-    wID FindT(const T& identifier);
+        wID Find2(cstr identifier, cstr type = "title");
+        template<typename T> wID FindT(const T& identifier);
 
-    // Function to get the title of a window by ID
-    str Title(wID win = NULL);
+        str Title(wID win = 0);
+        bool Active(wID win = 0);
+        bool Exists(wID win);
 
-    // Check if a window is active
-    bool Active(wID win = NULL);
-    bool Exists(wID win);
+        void Activate(wID win = 0);
+        void Close(wID win = 0);
+        void Min(wID win = 0);
+        void Max(wID win = 0);
+        Rect Pos(wID win = 0);
+        void AlwaysOnTop(wID win = 0, bool top = true);
+        void Transparency(wID win = 0, int alpha = 255);
 
-    // Activate a window
-    void Activate(wID win = NULL);
+    private:
+        Rect GetPositionX11(wID win);
+        Rect GetPositionWayland(wID win);
 
-    // Close a window
-    void Close(wID win = NULL);
-
-    // Minimize a window
-    void Min(wID win = NULL);
-
-    // Maximize a window
-    void Max(wID win = NULL);
-
-    // Get the position of a window
-    RECT Pos(wID win = NULL);
-
-    // Set a window to always be on top
-    void AlwaysOnTop(wID win = NULL, bool top = true);
-
-    // Set the transparency of a window
-    void Transparency(wID win = NULL, int alpha = 255);
-};
+        #ifdef __linux__
+        DisplayServer DetectDisplayServer();
+        #else
+        Rect GetPositionWindows(wID win);
+        #endif
+    };
+}
 
 #endif // WINDOW_HPP

@@ -45,7 +45,9 @@ public:
     Logger& operator<<(long value);
     Logger& operator<<(double value);
     Logger& operator<<(bool value);
+    #ifdef WINDOWS
     Logger& operator<<(int64_t value);
+    #endif
 
     // Specialization for std::endl
     Logger& operator<<(std::ostream& (*manip)(std::ostream&));

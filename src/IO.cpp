@@ -7,10 +7,12 @@ std::unordered_map<int, HotKey> IO::hotkeys; // Map to store hotkeys by ID
 IO::IO()
 {
 #if defined(__linux__)
-    display = XOpenDisplay(nullptr);
-    if (!display)
-    {
-        std::cerr << "Failed to open X11 display" << std::endl;
+    if (!display){
+        display = XOpenDisplay(nullptr);
+        if (!display)
+        {
+            std::cerr << "Failed to open X11 display" << std::endl;
+        }
     }
 #endif
 }
