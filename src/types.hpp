@@ -17,6 +17,7 @@
     #define OS_NAME "Windows"
     using wID = HWND;
     using pID = DWORD;  
+    using Key = inr;
     // #define DESKTOP_ENVIRONMENT "Unknown" // Placeholder for Windows
     // #define WINDOW_MANAGER "Unknown" // Placeholder for Windows
 #elif defined(__linux__)
@@ -48,6 +49,7 @@
     #include <X11/XF86keysym.h>
     #include <X11/Xatom.h>
     using wID = XID; // X11 Window type
+    using Key = XID;
     #endif
     using pID = pid_t; // Example type for process ID
 #elif defined(__APPLE__)

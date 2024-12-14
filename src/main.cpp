@@ -95,31 +95,12 @@ void linux_test(WindowManager w){
     lo << r2;
     int r3 = w.Run("/usr/bin/mpv https://youtu.be/Hvy4xxdP8Dg", 0, "", "", 3);
     lo << r3;
-}
-
-// Main function (should be placed in a separate file, e.g., main.cpp)
-int main() {
-    WindowManager w;
-    w.SetPriority(5);
-    lo << "Hello";
-    linux_test(w);
-    //int r = w.Run("C:\\Windows\\explorer.exe", 1, "Max", "", 1);
-    //lo << r;
-    //int r2 = w.Run("C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe", 0, "Min", "", 1);
-    //lo << r2;
-    // int r3 = w.Run("C:\\Program Files\\mpv\\mpv.exe", 0, "", "https://youtu.be/Hvy4xxdP8Dg", 3);
-    // lo << r3;
-    //lo << w.Run("C:\\Program Files\\mpv\\mpv.exe", 0, "", "https://youtu.be/kHUaEKZQcQo", 0);
-    lo << w.Run("mpv https://www.youtube.com", ProcessMethod::Shell, "", "");
-    //lo << w.Run("S:\\Emu\\ryujinx\\Ryujinx.exe", 0, "", "", 0);
-    //lo << w.Run("S:\\SteamLibrary\\steamapps\\common\\GarrysMod\\gmod.exe", ProcessMethod::CreateNewWindow, "", "-gl", 5);
-    //lo << w.Terminal("@echo off & powershell -command \"Add-Type -AssemblyName PresentationFramework; [System.Windows.MessageBox]::Show('Hello, this is a message box!', 'Message Box Title')\"", false, "Hide", false);
-    lo << w.Terminal("streamlink twitch.tv/shylily best", false, "Hide", false);
-    lo << w.Terminal("ping 8.8.8.8", true, "Call", true);
-    lo << w.Terminal("py -m IPython", true, "Max", false);
-    lo << w.Run("/home/all/scripts/lux.sh 0.4", ProcessMethod::Shell, "", "");
-    lo << w.Run("/home/all/scripts/lux.sh -0.1", ProcessMethod::Shell, "", "");
-    //lo << w.Terminal("Write-Host (Get-Date -Format \"dd MMMM yyyy\")", true, "", true, "Powershell");
+    //lo << w.Terminal("streamlink twitch.tv/shylily best", false, "Hide", false);
+    //lo << w.Terminal("ping 8.8.8.8", true, "Call", true);
+    //lo << w.Terminal("py -m IPython", true, "Max", false);
+    //lo << w.Run("/home/all/scripts/lux.sh 0.4", ProcessMethod::Shell, "", "");
+    //lo << w.Run("/home/all/scripts/lux.sh -0.1", ProcessMethod::Shell, "", "");
+    
     H::Window wm("exe mpv"); // Initialize with an empty identifier
 
     // Example usage of adding groups
@@ -128,8 +109,8 @@ int main() {
     wm.AddGroup("grp", "exe code");
 
     // Example usage of FindWindow
-   /* wID winId = wm.Find("exe mpv"); // Change this to test other identifiers
-
+    wID winId = wm.Find("exe mpv"); // Change this to test other identifiers
+    std::cout << winId;
     if (winId) {
         lo << "Window Title: " << wm.Title(winId);
         wm.Min(winId);
@@ -139,8 +120,28 @@ int main() {
         wm.Pos(winId);
         wm.Close(winId);
     }
-*/
-    wm.All(); // List all open windows
+ //   wm.All(); // List all open windows
+
+}
+
+// Main function (should be placed in a separate file, e.g., main.cpp)
+int main() {
+    WindowManager w;
+    //w.SetPriority(5);
+    lo << "Hello";
+    //linux_test(w);
+    //int r = w.Run("C:\\Windows\\explorer.exe", 1, "Max", "", 1);
+    //lo << r;
+    //int r2 = w.Run("C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe", 0, "Min", "", 1);
+    //lo << r2;
+    // int r3 = w.Run("C:\\Program Files\\mpv\\mpv.exe", 0, "", "https://youtu.be/Hvy4xxdP8Dg", 3);
+    // lo << r3;
+    //lo << w.Run("C:\\Program Files\\mpv\\mpv.exe", 0, "", "https://youtu.be/kHUaEKZQcQo", 0);
+    //lo << w.Run("mpv https://www.youtube.com", ProcessMethod::Shell, "", "");
+    //lo << w.Run("S:\\Emu\\ryujinx\\Ryujinx.exe", 0, "", "", 0);
+    //lo << w.Run("S:\\SteamLibrary\\steamapps\\common\\GarrysMod\\gmod.exe", ProcessMethod::CreateNewWindow, "", "-gl", 5);
+    //lo << w.Terminal("@echo off & powershell -command \"Add-Type -AssemblyName PresentationFramework; [System.Windows.MessageBox]::Show('Hello, this is a message box!', 'Message Box Title')\"", false, "Hide", false);
+    //lo << w.Terminal("Write-Host (Get-Date -Format \"dd MMMM yyyy\")", true, "", true, "Powershell");
 
     std::string keyName = "Space";
     std::string mode = "P";
@@ -150,20 +151,20 @@ int main() {
     std::cout << "Key state: " << (state ? "Pressed" : "Released") << std::endl;
 
     // Run tests
-    testSend(io);
+    //testSend(io);
     testControlSend(io);
     testRegisterHotkey(io);
     testHotkey(io);
-    testSetTimer(io);
-    testMsgBox(io);
+    //testSetTimer(io);
+    //testMsgBox(io);
     testHotkeyListen(io);
 
     bool loop = true;
-    while(loop){
-        if(io.GetState("Esc")){
-            loop = false;
-        }
-    }
+    //while(loop){
+    //    if(io.GetState("Esc")){
+    //        loop = false;
+    //    }
+    //}
     // Wait for user input to exit
     //lo << "Press Enter to exit...";
     //std::cin.get();

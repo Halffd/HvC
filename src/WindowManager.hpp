@@ -10,6 +10,12 @@
 #include <cmath>
 #include <unordered_map>
 #include <variant>
+
+#include <cstdio>
+#include <sstream>
+#include <string>
+#include <cstring> // for std::strerror
+#include <cerrno>  // for errno
 #include "types.hpp"
 #include "Util.hpp"
 #include "Logger.h"
@@ -19,6 +25,7 @@
     #include <sys/resource.h>
     #include <csignal>
     extern Display* display;
+    extern Window root;
     extern cstr globalShell;
 #endif
 
@@ -109,6 +116,7 @@ protected:
     #endif
 private:
     static bool InitializeX11();
+    static str getProcessName(pid_t windowPID);
 
     // Helper function to convert string to ProcessMethod
     static ProcessMethod toMethod(const std::string& method);

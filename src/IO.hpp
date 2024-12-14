@@ -12,7 +12,7 @@
 struct HotKey {
     int modifiers; // Modifier mask (Ctrl, Alt, Shift, etc.)
     struct {
-        int virtualKey;
+        Key virtualKey;
         std::string name;
     } key;
     std::function<void()> action; // Action to perform on activation
@@ -35,10 +35,16 @@ public:
     static void MsgBox(const std::string& message);
     void HandleKeyAction(const std::string& action, const std::string& keyName);
     int GetState(const std::string& keyName, const std::string& mode = "T");
-    static int StringToVirtualKey(str keyName);
+    static Key StringToVirtualKey(str keyName);
     static void removeSpecialCharacters(std::string& keyName);
 
 private:
+    int GetKeyboard();
+    int GetMouse();
+    void HandleMouseEvent(XEvent& event);
+    void HandleKeyEvent(XEvent& event);
+    unsigned int StringToButton(const str& buttonName);
+
     void ProcessKeyCombination(const std::string& keys);
     int ParseModifiers(std::string str);
     void SendX11Key(const std::string& keyName, bool press);

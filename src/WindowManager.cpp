@@ -9,6 +9,7 @@ str defaultTerminal = "Cmd";
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 Display* display = nullptr; // Global X11 display handle
+Window root = 0;
 str defaultTerminal = "konsole"; //gnome-terminal
 cstr globalShell = "fish";
 #endif
@@ -133,7 +134,6 @@ wID WindowManager::Find(cstr identifier) {
     return 0; // Unsupported platform
 }
 
-// Helper to get wID by PID
 wID WindowManager::GetwIDByPID(pID pid) {
 #ifdef WINDOWS
     wID hwnd = NULL;
@@ -153,8 +153,8 @@ wID WindowManager::GetwIDByPID(pID pid) {
 
     Window root = DefaultRootWindow(display);
     Window parent;
-    Window* children;
-    unsigned int nchildren;
+    Window* children = nullptr;
+    unsigned int nchildren = 0;
 
     Atom pidAtom = XInternAtom(display, "_NET_WM_PID", True);
     if (pidAtom == None) {
@@ -164,6 +164,11 @@ wID WindowManager::GetwIDByPID(pID pid) {
 
     if (XQueryTree(display, root, &root, &parent, &children, &nchildren)) {
         for (unsigned int i = 0; i < nchildren; ++i) {
+            XWindowAttributes attrs;
+            if (XGetWindowAttributes(display, children[i], &attrs) == 0) {
+                continue; // Skip invalid windows
+            }
+
             Atom actualType;
             int actualFormat;
             unsigned long nitems, bytesAfter;
@@ -175,6 +180,7 @@ wID WindowManager::GetwIDByPID(pID pid) {
                     pID windowPID = *(reinterpret_cast<pID*>(propPID));
                     XFree(propPID);
                     if (windowPID == pid) {
+                        XFree(children);
                         return reinterpret_cast<wID>(children[i]);
                     }
                 }
@@ -188,7 +194,6 @@ wID WindowManager::GetwIDByPID(pID pid) {
 #endif
 }
 
-// Helper to get wID by process name
 wID WindowManager::GetwIDByProcessName(cstr processName) {
 #ifdef WINDOWS
     EnumWindowsData data(processName);
@@ -219,8 +224,8 @@ wID WindowManager::GetwIDByProcessName(cstr processName) {
 
     Window root = DefaultRootWindow(display);
     Window parent;
-    Window* children;
-    unsigned int nchildren;
+    Window* children = nullptr;
+    unsigned int nchildren = 0;
 
     Atom pidAtom = XInternAtom(display, "_NET_WM_PID", True);
     if (pidAtom == None) {
@@ -230,6 +235,11 @@ wID WindowManager::GetwIDByProcessName(cstr processName) {
 
     if (XQueryTree(display, root, &root, &parent, &children, &nchildren)) {
         for (unsigned int i = 0; i < nchildren; ++i) {
+            XWindowAttributes attrs;
+            if (XGetWindowAttributes(display, children[i], &attrs) == 0) {
+                continue; // Skip invalid windows
+            }
+
             Atom actualType;
             int actualFormat;
             unsigned long nitems, bytesAfter;
@@ -241,19 +251,11 @@ wID WindowManager::GetwIDByProcessName(cstr processName) {
                     pID windowPID = *(reinterpret_cast<pID*>(propPID));
                     XFree(propPID);
 
-                    // Match PID to process name using /proc
-                    std::ostringstream procPath;
-                    procPath << "/proc/" << windowPID << "/comm";
-                    std::ifstream procFile(procPath.str());
-                    std::cout << "File path: " << procPath.str() << "\n";
-                    if (procFile.is_open()) {
-                        std::string procName;
-                        std::getline(procFile, procName);
-                        procFile.close();
-
-                        if (procName == processName) {
-                            return reinterpret_cast<wID>(children[i]);
-                        }
+                    std::string procName = getProcessName(windowPID);
+                    
+                    if (procName == processName) {
+                        XFree(children);
+                        return reinterpret_cast<wID>(children[i]);
                     }
                 }
             }
@@ -320,6 +322,37 @@ wID WindowManager::FindByTitle(cstr title) {
     }
     #endif
     return 0;
+}
+std::string WindowManager::getProcessName(pid_t windowPID) {
+    std::ostringstream procPath;
+    procPath << "/proc/" << windowPID << "/comm";
+    std::string path = procPath.str();
+    
+    // Open the file using fopen
+    FILE* procFile = fopen(path.c_str(), "r");
+    std::cout << "Attempting to open: " << path << "\n";
+    
+    if (!procFile) {
+        std::cerr << "Error: Could not open file " << path << ": " << std::strerror(errno) << "\n";
+        return ""; // Handle the error as needed
+    }
+
+    char procName[256]; // Buffer to hold the process name
+    if (fgets(procName, sizeof(procName), procFile) != nullptr) {
+        fclose(procFile); // Close the file
+
+        // Trim newline character, if present
+        size_t len = std::strlen(procName);
+        if (len > 0 && procName[len - 1] == '\n') {
+            procName[len - 1] = '\0'; // Replace newline with null terminator
+        }
+
+        return std::string(procName); // Return the process name as a string
+    } else {
+        std::cerr << "Error: Could not read from file " << path << ": " << std::strerror(errno) << "\n";
+        fclose(procFile); // Close the file
+        return ""; // Handle the error as needed
+    }
 }
 // Helper to find a window in a specified group
 wID WindowManager::FindWindowInGroup(cstr groupName) {

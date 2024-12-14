@@ -9,6 +9,8 @@ IO::IO()
 #if defined(__linux__)
     if (!display){
         display = XOpenDisplay(nullptr);
+        root = XDefaultRootWindow(display);
+
         if (!display)
         {
             std::cerr << "Failed to open X11 display" << std::endl;
@@ -30,8 +32,39 @@ void IO::removeSpecialCharacters(str &keyName)
                                  }),
                   keyName.end());
 }
+void IO::HandleKeyEvent(XEvent& event) {
+    XKeyEvent* keyEvent = reinterpret_cast<XKeyEvent*>(&event);
+    KeySym keysym = XLookupKeysym(keyEvent, 0);
+
+    for (const auto& [id, hotkey] : hotkeys) {
+        if (hotkey.enabled && hotkey.key.virtualKey == keysym) {
+            if (hotkey.action) hotkey.action();
+        }
+    }
+}
+
+void IO::HandleMouseEvent(XEvent& event) {
+    XButtonEvent* buttonEvent = reinterpret_cast<XButtonEvent*>(&event);
+    unsigned int button = buttonEvent->button;
+
+    for (const auto& [id, hotkey] : hotkeys) {
+        if (hotkey.enabled && StringToButton(hotkey.key.name) == button) {
+            if (hotkey.action) hotkey.action();
+        }
+    }
+}
+
+unsigned int IO::StringToButton(const str& buttonName) {
+    if (buttonName == "Button1") return Button1;
+    if (buttonName == "Button2") return Button2;
+    if (buttonName == "Button3") return Button3;
+    if (buttonName == "ScrollUp") return Button4;
+    if (buttonName == "ScrollDown") return Button5;
+    return 0;
+}
+
 // Helper function to convert string to virtual key code
-int IO::StringToVirtualKey(str keyName)
+Key IO::StringToVirtualKey(str keyName)
 {
     removeSpecialCharacters(keyName);
 #ifdef WINDOWS
@@ -555,7 +588,6 @@ void IO::Hotkey(cstr hotkeyStr, std::function<void()> action, int id)
     str keyStr = hotkeyStr;
     str keys = hotkeyStr;
     int modifiers = ParseModifiers(keyStr);
-    int virtualKey = StringToVirtualKey(keyStr);
     bool block = true;
     bool isSuspend = false;
     if (hotkeyStr.find("*") != str::npos)
@@ -568,10 +600,14 @@ void IO::Hotkey(cstr hotkeyStr, std::function<void()> action, int id)
         isSuspend = true;
         keys.erase(keys.find("&"), 1);
     }
+    removeSpecialCharacters(keyStr);
+    Key virtualKey = StringToVirtualKey(keyStr);
     HotKey hotkey = {
         modifiers,
-        {virtualKey,
-         keys},
+        {
+            virtualKey,
+            keys
+        },
         action,
         block,
         isSuspend,
@@ -672,6 +708,34 @@ void IO::AssignHotkey(HotKey hotkey, int id)
             std::cerr << "Failed to register hotkey: " << GetLastError();
             return;
         }
+#else
+    if (!display) {
+        std::cerr << "X11 display not initialized for hotkey assignment!" << std::endl;
+        return;
+    }
+
+    if (id == -1) id = ++hotkeyCount;
+    hotkeys[id] = hotkey;
+
+    KeyCode keycode = XKeysymToKeycode(display, hotkey.key.virtualKey);
+    if (keycode == 0) {
+        std::cerr << "Invalid key for X11 hotkey assignment!" << std::endl;
+        return;
+    }
+
+    // Grab the key globally
+    XGrabKey(display, keycode, hotkey.modifiers, root, True,
+             GrabModeAsync, GrabModeAsync);
+
+    // If mouse buttons are included, grab them too
+    if (hotkey.key.name == "Button1" || hotkey.key.name == "Button2" || hotkey.key.name == "Button3" ||
+        hotkey.key.name == "ScrollUp" || hotkey.key.name == "ScrollDown") {
+        unsigned int button = StringToButton(hotkey.key.name);
+        if (button != 0) {
+            XGrabButton(display, button, hotkey.modifiers, DefaultRootWindow(display), True,
+                        ButtonPressMask | ButtonReleaseMask, GrabModeAsync, GrabModeAsync, None, None);
+        }
+    }
 #endif
     }
     hotkey.enabled = true;
@@ -723,61 +787,83 @@ LRESULT CALLBACK IO::KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
     return CallNextHookEx(keyboardHook, nCode, wParam, lParam);
 }
 #endif
-void IO::HotkeyListen()
-{
-#if defined(__linux__)
-
-    if (!display)
-    {
-        std::cerr << "X11 display not initialized for hotkey listening!" << std::endl;
-        return;
-    }
-
-    // Window root = DefaultRootWindow(display);
-    XEvent event;
-
-    while (true)
-    {
-        XNextEvent(display, &event);
-        lo << event.type;
-        if (event.type == KeyPress || event.type == KeyRelease)
-        {
-            XKeyEvent *keyEvent = reinterpret_cast<XKeyEvent *>(&event);
-
-            KeySym keysym = XLookupKeysym(reinterpret_cast<XKeyEvent *>(keyEvent), 0); // Translate keycode to KeySym
-            lo << (int) keysym;
-            for (const auto &[id, hotkey] : hotkeys)
-            {
-                if (hotkey.enabled)
-                {
-                    if ((KeySym)hotkey.key.virtualKey == keysym)
-                    {
-                        // Key matched; execute hotkey action
-                        if (hotkey.action)
-                        {
-                            hotkey.action();
-                        }
-                    }
-                }
-            }
+int IO::GetMouse() {
+    if (!display) {
+        display = XOpenDisplay(nullptr);
+        if (!display) {
+            std::cerr << "Unable to open X display!" << std::endl;
+            return EXIT_FAILURE;
         }
     }
-#else
+
+    Window window = XCreateSimpleWindow(display, root, 10, 10, 200, 200, 1, 0, 0);
+    XSelectInput(display, window, ButtonPressMask | PointerMotionMask);
+    XMapWindow(display, window);
+
+    if (XGrabPointer(display, window, True, ButtonPressMask | PointerMotionMask,
+                     GrabModeAsync, GrabModeAsync, None, None, CurrentTime) != GrabSuccess) {
+        std::cerr << "Unable to grab pointer!" << std::endl;
+        XCloseDisplay(display);
+        return EXIT_FAILURE;
+    }
+
+    XEvent event;
+    while (true) {
+        XNextEvent(display, &event);
+        if (event.type == ButtonPress) {
+            std::cout << "Mouse button pressed: " << event.xbutton.button << std::endl;
+        } else if (event.type == MotionNotify) {
+            std::cout << "Mouse moved: (" << event.xmotion.x << ", " << event.xmotion.y << ")" << std::endl;
+        }
+    }
+
+    XUngrabPointer(display, CurrentTime);
+    XCloseDisplay(display);
+    return 0;
+}
+int IO::GetKeyboard() {
+    if (!display) {
+        display = XOpenDisplay(nullptr);
+        if (!display) {
+            std::cerr << "Unable to open X display!" << std::endl;
+            return EXIT_FAILURE;
+        }
+    }
+
+    Window window = XCreateSimpleWindow(display, DefaultRootWindow(display), 0, 0, 1, 1, 0, 0, 0);
+    if (XGrabKeyboard(display, window, True, GrabModeAsync, GrabModeAsync, CurrentTime) != GrabSuccess) {
+        std::cerr << "Unable to grab keyboard!" << std::endl;
+        XDestroyWindow(display, window);
+        XCloseDisplay(display);
+        return EXIT_FAILURE;
+    }
+
+    XEvent event;
+    while (true) {
+        XNextEvent(display, &event);
+        if (event.type == KeyPress) {
+            std::cout << "Key pressed: " << event.xkey.keycode << std::endl;
+        }
+    }
+
+    XUngrabKeyboard(display, CurrentTime);
+    XDestroyWindow(display, window);
+    XCloseDisplay(display);
+    return 0;
+}
+void IO::HotkeyListen() {
+#if defined(WINDOWS)
     MSG msg;
     keyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, NULL, 0);
-    if (!keyboardHook)
-    {
+    if (!keyboardHook) {
         std::cerr << "Failed to install hook: " << GetLastError() << std::endl;
         return;
     }
-    while (GetMessage(&msg, 0, 0, 0))
-    {
-        if (msg.message == WM_HOTKEY && hotkeys.count(msg.wParam))
-        {
+    while (GetMessage(&msg, 0, 0, 0)) {
+        if (msg.message == WM_HOTKEY && hotkeys.count(msg.wParam)) {
             HotKey hotkey = hotkeys[msg.wParam];
-            if (hotkey.action)
-            {
-                std::cout << "Actiom from blocking GetMessage for " << hotkey.key.name << "\n";
+            if (hotkey.action) {
+                std::cout << "Action triggered for: " << hotkey.key.name << "\n";
                 hotkey.action();
             }
         }
@@ -785,6 +871,71 @@ void IO::HotkeyListen()
         DispatchMessage(&msg);
     }
     UnhookWindowsHookEx(keyboardHook);
+#elif defined(__linux__)
+    
+    if (!display) {
+        std::cerr << "X11 display not initialized for hotkey listening!" << std::endl;
+        return;
+    }
+
+    XEvent event;
+    Display* dis = display;
+    
+    // Iterate through all registered hotkeys
+    for (const auto& [id, hotkey] : hotkeys) {
+        if (!hotkey.enabled) continue;
+
+        KeyCode keycode = XKeysymToKeycode(dis, hotkey.key.virtualKey);
+        if (keycode == 0) {
+            std::cerr << "Invalid key: " << hotkey.key.name << std::endl;
+            continue;
+        }
+
+        // Grab the key with the appropriate owner_events based on blockInput
+        Bool owner_events = hotkey.blockInput ? False : True;
+
+        if (XGrabKey(dis, keycode, hotkey.modifiers, root, owner_events,
+                     GrabModeAsync, GrabModeAsync) != Success) {
+            std::cerr << "Failed to grab key: " << hotkey.key.name << std::endl;
+        }
+    }
+
+    // Event loop to listen for hotkeys
+    while (true) {
+        XNextEvent(dis, &event);
+
+        if (event.type == KeyPress) {
+            XKeyEvent* keyEvent = reinterpret_cast<XKeyEvent*>(&event);
+            KeySym keysym = XLookupKeysym(keyEvent, 0);
+
+            // Iterate through all hotkeys and trigger matching actions
+            for (const auto& [id, hotkey] : hotkeys) {
+                if (hotkey.enabled && hotkey.key.virtualKey == keysym) {
+                    if (hotkey.action) {
+                        hotkey.action(); // Trigger hotkey action
+                    }
+
+                    // Break the loop if input blocking is enabled
+                    if (hotkey.blockInput) {
+                        lo << "Blocked input for hotkey: " << hotkey.key.name;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // Ungrab all keys when exiting
+    for (const auto& [id, hotkey] : hotkeys) {
+        if (!hotkey.enabled) continue;
+
+        KeyCode keycode = XKeysymToKeycode(dis, hotkey.key.virtualKey);
+        if (keycode != 0) {
+            XUngrabKey(dis, keycode, hotkey.modifiers, root);
+        }
+    }
+
+    XCloseDisplay(dis);
 #endif
 }
 
@@ -813,20 +964,21 @@ int IO::ParseModifiers(str str)
         str.erase(str.find("#"), 1);
     }
 #else
-    if (str.find("+") != std::string::npos)
-    {
+    if (str.find("+") != std::string::npos) {
         modifiers |= ShiftMask;
         str.erase(str.find("+"), 1);
     }
-    if (str.find("^") != std::string::npos)
-    {
+    if (str.find("^") != std::string::npos) {
         modifiers |= ControlMask;
         str.erase(str.find("^"), 1);
     }
-    if (str.find("!") != std::string::npos)
-    {
+    if (str.find("!") != std::string::npos) {
         modifiers |= Mod1Mask;
         str.erase(str.find("!"), 1);
+    }
+    if (str.find("#") != std::string::npos) {
+        modifiers |= Mod4Mask; // For Meta/Windows
+        str.erase(str.find("#"), 1);
     }
 #endif
     return modifiers;
@@ -880,67 +1032,53 @@ void IO::HandleKeyAction(cstr action, cstr keyName)
     XCloseDisplay(display);
 #endif
 }
-int IO::GetState(cstr keyName, cstr mode)
-{
-    // Define the virtual key code
-    int virtualKey = StringToVirtualKey(keyName);
-
+int IO::GetState(cstr keyName, cstr mode) {
 #if defined(WINDOWS)
-    // Windows-specific implementation
-    if (mode.empty() || mode == "P")
-    {
-        // Physical state
+    int virtualKey = StringToVirtualKey(keyName);
+    if (mode.empty() || mode == "P") {
         return (GetAsyncKeyState(virtualKey) & 0x8000) ? 1 : 0;
-    }
-    else if (mode == "T")
-    {
-        // Toggle state for keys like CapsLock, NumLock, ScrollLock
+    } else if (mode == "T") {
         return (GetKeyState(virtualKey) & 0x1) ? 1 : 0;
     }
-
-#elif defined(LINUX)
-    // Linux (X11)-specific implementation
-    if (!display)
-    {
-        std::cerr << "X11 display not initialized!" << std::endl;
-        return 0;
+#elif defined(__linux__)
+    if (!display) {
+        display = XOpenDisplay(nullptr);
+        if (!display) {
+            std::cerr << "Unable to open X11 display!" << std::endl;
+            return 0;
+        }
     }
 
-    // Use XQueryKeymap to get the state of all keys
     char keys[32];
     XQueryKeymap(display, keys);
 
-    // Get the keycode for the requested key
-    KeyCode keycode = XKeysymToKeycode(display, virtualKey);
-    if (keycode == 0)
-    {
+    KeySym keysym = XStringToKeysym(keyName.c_str());
+    if (keysym == NoSymbol) {
         std::cerr << "Invalid key: " << keyName << std::endl;
         return 0;
     }
 
-    // Check the key state (physical state)
-    if (mode.empty() || mode == "P")
-    {
-        return (keys[keycode / 8] & (1 << (keycode % 8))) ? 1 : 0;
+    KeyCode keycode = XKeysymToKeycode(display, keysym);
+    if (keycode == 0) {
+        std::cerr << "Invalid keycode for key: " << keyName << std::endl;
+        return 0;
     }
-    else if (mode == "T")
-    {
-        if (keyName == "CapsLock")
-        {
-            XKeyboardState keyboardState;
-            XGetKeyboardControl(display, &keyboardState);  // Pass a reference to the struct
-            return (keyboardState.led_mask & 0x1) ? 1 : 0; // Access the led_mask field
-        }
-        else if (keyName == "NumLock")
-        {
-            XKeyboardState keyboardState;
-            XGetKeyboardControl(display, &keyboardState);  // Pass a reference to the struct
-            return (keyboardState.led_mask & 0x2) ? 1 : 0; // Access the led_mask field
+
+    if (mode.empty() || mode == "P") {
+        return (keys[keycode / 8] & (1 << (keycode % 8))) ? 1 : 0;
+    } else if (mode == "T") {
+        if (keyName == "CapsLock" || keyName == "NumLock") {
+            XKeyboardState state;
+            XGetKeyboardControl(display, &state);
+
+            if (keyName == "CapsLock") {
+                return (state.led_mask & 0x1) ? 1 : 0;
+            } else if (keyName == "NumLock") {
+                return (state.led_mask & 0x2) ? 1 : 0;
+            }
         }
         return 0; // No toggle state for other keys
     }
-
 #endif
-
-    return 0; // Default case if mode is not recognized
+    return 0;
 }
