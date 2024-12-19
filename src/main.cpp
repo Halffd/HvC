@@ -36,6 +36,10 @@ void HvC(IO io){
         io.Send("volumemute");
     });
 
+    io.Hotkey("insert", [&io]() {
+        H::Window win("A");
+        win.Min();
+    });
     io.Hotkey("&f9", [&io]() {
         io.Suspend();
     });

@@ -1,0 +1,15 @@
+# ninja log v6
+3	822	1734630774187038731	CMakeFiles/hvc.dir/src/Other.cpp.o	6b28d10ae2606103
+2	1123	1734630774186038726	CMakeFiles/hvc.dir/src/Logger.cpp.o	c4850658e09059da
+0	1336	1734630774184038718	CMakeFiles/hvc.dir/src/IO.cpp.o	ed2e53a3e1a6cf2f
+824	1675	1734630775008042068	CMakeFiles/hvc.dir/src/Printer.cpp.o	2adcd29eb1cf656c
+1123	2158	1734630775308043287	CMakeFiles/hvc.dir/src/Util.cpp.o	2c03d1a3552f9c3a
+1336	2522	1734630775520044148	CMakeFiles/hvc.dir/src/Window.cpp.o	81edeace67653331
+2158	3311	1734630776342047488	CMakeFiles/hvc.dir/src/main.cpp.o	96c9b8ad2c97106c
+2522	3576	1734630776707048970	CMakeFiles/hvc.dir/src/test.cpp.o	6c551ebc28efd633
+3	1458	1734630822673233830	CMakeFiles/hvc.dir/src/Window.cpp.o	81edeace67653331
+2	1720	1734630822672233826	CMakeFiles/hvc.dir/src/IO.cpp.o	ed2e53a3e1a6cf2f
+5	1942	1734630822675233838	CMakeFiles/hvc.dir/src/WindowManager.cpp.o	2bb7608d35edc7c7
+1458	2576	1734630824128239625	CMakeFiles/hvc.dir/src/main.cpp.o	96c9b8ad2c97106c
+1720	2768	1734630824390240668	CMakeFiles/hvc.dir/src/test.cpp.o	6c551ebc28efd633
+2768	2888	1734630825438244841	HvC	107fa754077979f6

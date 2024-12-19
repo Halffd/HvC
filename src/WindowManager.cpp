@@ -94,9 +94,51 @@ str WindowManager::GetIdentifierValue(cstr identifier)
     }
     return ""; // Return empty if no space found
 }
+// Windows implementation
+wID WindowManager::GetActiveWindow() {
+#if defined(_WIN32)
+    wID hwnd = GetForegroundWindow(); // Get the active window handle
+    return (hwnd); // Return as void* for platform-independence
+#elif defined(__linux__)
+    // Linux (X11) implementation
+    if (!display) {
+        return 0; // Unable to connect to the X server
+    }
+
+    wID root = DefaultRootWindow(display);
+    Atom activeAtom = XInternAtom(display, "_NET_ACTIVE_WINDOW", True);
+    if (activeAtom == None) {
+        XCloseDisplay(display);
+        return 0; // No support for _NET_ACTIVE_WINDOW
+    }
+
+    Atom actualType;
+    int actualFormat;
+    unsigned long nItems, bytesAfter;
+    unsigned char* prop = nullptr;
+
+    if (XGetWindowProperty(display, root, activeAtom, 0, (~0L), False, AnyPropertyType,
+                           &actualType, &actualFormat, &nItems, &bytesAfter, &prop) == Success) {
+        if (nItems > 0) {
+            wID activeWindow = *reinterpret_cast<Window*>(prop);
+            XFree(prop);
+            XCloseDisplay(display);
+            return (activeWindow); // Return XID as void*
+        }
+        XFree(prop);
+                           }
+
+    XCloseDisplay(display);
+    return 0;
+#endif
+}
+
 
 // Method to find a window based on various identifiers
 wID WindowManager::Find(cstr identifier) {
+    if (identifier == "A" || identifier.empty()) {
+        return GetActiveWindow();
+    }
     str type = GetIdentifierType(identifier);
     str value = GetIdentifierValue(identifier);
     #ifdef WINDOWS

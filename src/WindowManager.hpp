@@ -87,6 +87,8 @@ public:
 
     static int64_t Terminal(cstr command, bool canPause = false, str windowState = "Hide", bool continueExecution = false, cstr terminal = defaultTerminal);
 
+    static wID GetActiveWindow();
+
     void SetPriority(int priority = 0, pID procID = 0);
 protected:
     static wID FindByClass(cstr className);
