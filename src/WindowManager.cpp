@@ -96,41 +96,42 @@ str WindowManager::GetIdentifierValue(cstr identifier)
 }
 // Windows implementation
 wID WindowManager::GetActiveWindow() {
-#if defined(_WIN32)
-    wID hwnd = GetForegroundWindow(); // Get the active window handle
-    return (hwnd); // Return as void* for platform-independence
-#elif defined(__linux__)
-    // Linux (X11) implementation
-    if (!display) {
-        return 0; // Unable to connect to the X server
-    }
 
-    wID root = DefaultRootWindow(display);
-    Atom activeAtom = XInternAtom(display, "_NET_ACTIVE_WINDOW", True);
-    if (activeAtom == None) {
-        XCloseDisplay(display);
-        return 0; // No support for _NET_ACTIVE_WINDOW
-    }
-
-    Atom actualType;
-    int actualFormat;
-    unsigned long nItems, bytesAfter;
-    unsigned char* prop = nullptr;
-
-    if (XGetWindowProperty(display, root, activeAtom, 0, (~0L), False, AnyPropertyType,
-                           &actualType, &actualFormat, &nItems, &bytesAfter, &prop) == Success) {
-        if (nItems > 0) {
-            wID activeWindow = *reinterpret_cast<Window*>(prop);
-            XFree(prop);
-            XCloseDisplay(display);
-            return (activeWindow); // Return XID as void*
+    #if defined(_WIN32)
+        wID hwnd = GetForegroundWindow();
+        return (hwnd);
+    #elif defined(__linux__)
+        Display* display = XOpenDisplay(nullptr);
+        if (!display) {
+            return 0;
         }
-        XFree(prop);
-                           }
 
-    XCloseDisplay(display);
-    return 0;
-#endif
+        wID root = DefaultRootWindow(display);
+        Atom activeAtom = XInternAtom(display, "_NET_ACTIVE_WINDOW", True);
+        if (activeAtom == None) {
+            
+            return 0;
+        }
+
+        Atom actualType;
+        int actualFormat;
+        unsigned long nItems, bytesAfter;
+        unsigned char* prop = nullptr;
+
+        if (XGetWindowProperty(display, root, activeAtom, 0, (~0L), False, AnyPropertyType,
+                             &actualType, &actualFormat, &nItems, &bytesAfter, &prop) == Success) {
+            if (nItems > 0) {
+                wID activeWindow = *reinterpret_cast<Window*>(prop);
+                XFree(prop);
+                
+                return activeWindow;
+            }
+            if (prop) XFree(prop);
+        }
+
+        
+        return 0;
+    #endif
 }
 
 
@@ -175,7 +176,120 @@ wID WindowManager::Find(cstr identifier) {
     }
     return 0; // Unsupported platform
 }
+// Example usage:
+void WindowManager::AltTab() {
+    Display* display = XOpenDisplay(nullptr);
+    if (!display) return;
 
+    Window root = DefaultRootWindow(display);
+    Atom clientListAtom = XInternAtom(display, "_NET_CLIENT_LIST_STACKING", False);
+    Atom activeWindowAtom = XInternAtom(display, "_NET_ACTIVE_WINDOW", False);
+
+    if (clientListAtom == None || activeWindowAtom == None) {
+        std::cerr << "Required atoms not found" << std::endl;
+        return;
+    }
+
+    // Get the list of windows
+    Atom actualType;
+    int actualFormat;
+    unsigned long numWindows, bytesAfter;
+    unsigned char* data = nullptr;
+
+    int status = XGetWindowProperty(display, root, clientListAtom,
+                                  0, (~0L), False, XA_WINDOW,
+                                  &actualType, &actualFormat,
+                                  &numWindows, &bytesAfter, &data);
+
+    if (status != Success || numWindows < 2) {
+        if (data) XFree(data);
+        return;
+    }
+
+    Window* windows = reinterpret_cast<Window*>(data);
+    
+    // Get current active window
+    unsigned char* activeData = nullptr;
+    unsigned long activeItems;
+    
+    status = XGetWindowProperty(display, root, activeWindowAtom,
+                              0, 1, False, XA_WINDOW,
+                              &actualType, &actualFormat,
+                              &activeItems, &bytesAfter, &activeData);
+                              
+    Window activeWindow = None;
+    if (status == Success && activeItems > 0) {
+        activeWindow = *reinterpret_cast<Window*>(activeData);
+    }
+    if (activeData) XFree(activeData);
+
+    // Find the window to activate (first visible window below current active window)
+    Window windowToActivate = None;
+    bool foundActive = false;
+
+    // Iterate through windows from top to bottom
+    for (int i = numWindows - 1; i >= 0; i--) {
+        Window currentWindow = windows[i];
+        
+        if (currentWindow == activeWindow) {
+            foundActive = true;
+            continue;
+        }
+
+        if (foundActive) {
+            // Check if window is visible and not minimized
+            XWindowAttributes attrs;
+            if (XGetWindowAttributes(display, currentWindow, &attrs)) {
+                if (attrs.map_state == IsViewable) {
+                    windowToActivate = currentWindow;
+                    break;
+                }
+            }
+        }
+    }
+
+    // If no window found after active window, take first visible window from top
+    if (windowToActivate == None) {
+        for (unsigned long i = numWindows - 1; i >= 0; i--) {
+            if (windows[i] == activeWindow) continue;
+            
+            XWindowAttributes attrs;
+            if (XGetWindowAttributes(display, windows[i], &attrs)) {
+                if (attrs.map_state == IsViewable) {
+                    windowToActivate = windows[i];
+                    break;
+                }
+            }
+        }
+    }
+
+    if (windowToActivate != None) {
+        // Create activation event
+        XEvent event = {};
+        event.type = ClientMessage;
+        event.xclient.type = ClientMessage;
+        event.xclient.window = windowToActivate;
+        event.xclient.message_type = activeWindowAtom;
+        event.xclient.format = 32;
+        event.xclient.data.l[0] = 2; // Source indication: pager
+        event.xclient.data.l[1] = CurrentTime;
+        event.xclient.data.l[2] = 0;
+
+        // Send the event
+        XSendEvent(display, root, False,
+                   SubstructureRedirectMask | SubstructureNotifyMask,
+                   &event);
+                   
+        // Raise the window
+        XRaiseWindow(display, windowToActivate);
+        
+        // Focus the window
+        XSetInputFocus(display, windowToActivate, RevertToParent, CurrentTime);
+    }
+
+    if (data) XFree(data);
+    XSync(display, False);
+}
 wID WindowManager::GetwIDByPID(pID pid) {
 #ifdef WINDOWS
     wID hwnd = NULL;

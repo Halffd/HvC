@@ -43,7 +43,8 @@ private:
     int GetMouse();
     void HandleMouseEvent(XEvent& event);
     void HandleKeyEvent(XEvent& event);
-    unsigned int StringToButton(const str& buttonName);
+    static Key StringToButton(str buttonName);
+    Key handleKeyString(const std::string& keystr);
 
     void ProcessKeyCombination(const std::string& keys);
     int ParseModifiers(std::string str);

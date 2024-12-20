@@ -5,43 +5,64 @@
 
 IO io;
 void HvC(IO io){
-    io.Hotkey("RWin", [&io]() {
-        io.Send("Win");
-    });
+    /*
     io.Hotkey("w", [&io]() {
-        io.Send("up");
+        io.Send("{up}");
     });
     io.Hotkey("a", [&io]() {
-        io.Send("left");
+        io.Send("{left}");
     });
     io.Hotkey("s", [&io]() {
-        io.Send("down");
+        io.Send("{down}");
     });
     io.Hotkey("d", [&io]() {
-        io.Send("right");
+        H::Window win("exe mpv");
+        std::cout << win.id << "\n";
+        win.Min();
     });
-    io.Hotkey("\\", [&io]() {
-        io.Send("mediaplay");
+    io.Hotkey("ks0x5c", [&io]() {
+        io.Send("\\");
     });
     io.Hotkey("rctrl", [&io]() {
-        io.Send("mediaplay");
+        io.Send("{mediaplay}");
+    });
+    io.Hotkey("f6", [&io]() {
+        io.Send("{mediaplay}");
     });
     io.Hotkey("numpadadd", [&io]() {
-        io.Send("volumeup");
+        io.Send("{volumeup}");
     });
     io.Hotkey("numpadsub", [&io]() {
-        io.Send("volumedown");
+        io.Send("{volumedown}");
     });
     io.Hotkey("numpaddiv", [&io]() {
-        io.Send("volumemute");
+        io.Send("{volumemute}");
+    });
+    */
+    io.Hotkey("menu", [&io]() {
+        WindowManager::AltTab();
     });
 
     io.Hotkey("insert", [&io]() {
         H::Window win("A");
+        std::cout << win.id << "\n";
         win.Min();
     });
     io.Hotkey("&f9", [&io]() {
         io.Suspend();
+    });
+    
+    io.Hotkey("!wheelup", [&io]() {
+        io.Send("^{Up}");
+    });
+    io.Hotkey("!wheeldown", [&io]() {
+        io.Send("^{Down}");
+    });
+    io.Hotkey("^.", [&io]() {
+        io.Send("^{Up}");
+    });
+    io.Hotkey("^,", [&io]() {
+        io.Send("^{Down}");
     });
     io.Hotkey("!Esc", []() {
         exit(0);

@@ -74,10 +74,8 @@ H::Rect H::Window::GetPositionX11(wID win) {
 
     XWindowAttributes attr;
     if (XGetWindowAttributes(display, win, &attr)) {
-        XCloseDisplay(display);
         return H::Rect(attr.x, attr.y, attr.width, attr.height);
     }
-    XCloseDisplay(display);
     return H::Rect(0, 0, 0, 0);
 }
 
@@ -143,7 +141,6 @@ std::string H::Window::Title(wID win) {
 
     Atom wmName = XInternAtom(display, "_NET_WM_NAME", True);
     if (wmName == None) {
-        XCloseDisplay(display);
         return "";
     }
 
@@ -157,11 +154,10 @@ std::string H::Window::Title(wID win) {
         if (prop) {
             std::string title(reinterpret_cast<char*>(prop));
             XFree(prop);
-            XCloseDisplay(display);
+            
             return title;
         }
     }
-    XCloseDisplay(display);
     return "";
 #elif defined(__linux__) && defined(__WAYLAND__)
     // Placeholder for Wayland: Use wmctrl as a fallback
@@ -208,11 +204,9 @@ bool H::Window::Active(wID win) {
         if (prop) {
             active = *reinterpret_cast<wID*>(prop);
             XFree(prop);
-            XCloseDisplay(display);
             return active == win;
         }
     }
-    XCloseDisplay(display);
     return false;
 #else
     return false;
@@ -231,7 +225,6 @@ bool H::Window::Exists(wID win) {
 
     XWindowAttributes attr;
     bool exists = XGetWindowAttributes(display, win, &attr) != 0;
-    XCloseDisplay(display);
     return exists;
 #elif defined(__linux__) && defined(__WAYLAND__)
     // Wayland does not provide a direct API to check window existence.
@@ -270,7 +263,6 @@ void H::Window::Activate(wID win) {
     } else {
         std::cerr << "Failed to find _NET_ACTIVE_WINDOW atom." << std::endl;
     }
-    XCloseDisplay(display);
 #elif defined(__linux__) && defined(__WAYLAND__)
     // Wayland implementation using `wmctrl`
     if (win) {
@@ -314,49 +306,32 @@ void H::Window::Close(wID win) {
         XSendEvent(display, win, False, NoEventMask, &event);
         XFlush(display);
     }
-    XCloseDisplay(display);
 #elif defined(__linux__) && defined(__WAYLAND__)
     // Wayland does not provide a universal API for closing windows.
     std::cerr << "Window closing in Wayland is not implemented." << std::endl;
 #endif
 }
-
-// Minimize a window
 void H::Window::Min(wID win) {
     if (!win) win = id;
+    if (!win) return; // Early return if no valid window ID
 
 #ifdef WINDOWS
     if (win) {
         ShowWindow(reinterpret_cast<HWND>(win), SW_MINIMIZE);
         std::cout << "Minimized: " << win << std::endl;
     }
-#elif defined(__linux__)
-    // X11 has no direct minimize command. Use _NET_WM_STATE_HIDDEN.
-    Display* display = XOpenDisplay(nullptr);
-    if (!display) return;
-
-    Atom wmState = XInternAtom(display, "_NET_WM_STATE", True);
-    Atom wmHidden = XInternAtom(display, "_NET_WM_STATE_HIDDEN", True);
-    if (wmState != None && wmHidden != None) {
-        XEvent event = {};
-        event.xclient.type = ClientMessage;
-        event.xclient.window = win;
-        event.xclient.message_type = wmState;
-        event.xclient.format = 32;
-        event.xclient.data.l[0] = 1; // Add
-        event.xclient.data.l[1] = wmHidden;
-        event.xclient.data.l[2] = 0;
-
-        XSendEvent(display, DefaultRootWindow(display), False, SubstructureRedirectMask | SubstructureNotifyMask, &event);
-        XFlush(display);
+#elif defined(__linux__) 
+    if (!display) {
+        std::cerr << "Failed to open X display" << std::endl;
+        return;
     }
-    XCloseDisplay(display);
+   // XIconifyWindow takes (Display*, Window, int screen_number)
+    XIconifyWindow(display, win, DefaultScreen(display));
+    XFlush(display);  // Ensure the command is sent to the server
 #elif defined(__linux__) && defined(__WAYLAND__)
-    // Wayland does not provide a universal API for minimizing windows.
     std::cerr << "Window minimization in Wayland is not implemented." << std::endl;
 #endif
 }
-
 // Maximize a window
 void H::Window::Max(wID win) {
     if (!win) win = id;
@@ -386,7 +361,6 @@ void H::Window::Max(wID win) {
         XSendEvent(display, DefaultRootWindow(display), False, SubstructureRedirectMask | SubstructureNotifyMask, &event);
         XFlush(display);
     }
-    XCloseDisplay(display);
 #elif defined(__linux__) && defined(__WAYLAND__)
     // Wayland does not provide a universal API for maximizing windows.
     std::cerr << "Window maximization in Wayland is not implemented." << std::endl;
@@ -412,7 +386,6 @@ void H::Window::Transparency(wID win, int alpha) {
         XChangeProperty(display, win, opacityAtom, XA_CARDINAL, 32, PropModeReplace, reinterpret_cast<unsigned char*>(&opacity), 1);
     }
     XFlush(display);
-    XCloseDisplay(display);
 #elif defined(__linux__) && defined(__WAYLAND__)
     // Wayland does not provide a universal API for setting transparency.
     std::cerr << "Transparency control in Wayland is not implemented." << std::endl;
@@ -443,7 +416,6 @@ void H::Window::AlwaysOnTop(wID win, bool top) {
         XSendEvent(display, DefaultRootWindow(display), False, SubstructureRedirectMask | SubstructureNotifyMask, &event);
         XFlush(display);
     }
-    XCloseDisplay(display);
 #elif defined(__linux__) && defined(__WAYLAND__)
     // Wayland does not provide a universal API for setting windows on top.
     std::cerr << "AlwaysOnTop in Wayland is not implemented." << std::endl;

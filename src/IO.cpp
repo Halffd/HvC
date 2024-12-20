@@ -48,21 +48,68 @@ void IO::HandleMouseEvent(XEvent& event) {
     unsigned int button = buttonEvent->button;
 
     for (const auto& [id, hotkey] : hotkeys) {
-        if (hotkey.enabled && StringToButton(hotkey.key.name) == button) {
+        if (hotkey.enabled && IO::StringToButton(hotkey.key.name) == button) {
             if (hotkey.action) hotkey.action();
         }
     }
 }
 
-unsigned int IO::StringToButton(const str& buttonName) {
-    if (buttonName == "Button1") return Button1;
-    if (buttonName == "Button2") return Button2;
-    if (buttonName == "Button3") return Button3;
-    if (buttonName == "ScrollUp") return Button4;
-    if (buttonName == "ScrollDown") return Button5;
+Key IO::StringToButton(str buttonName) {
+    buttonName = ToLower(buttonName);
+    
+    if (buttonName == "button1") return Button1;
+    if (buttonName == "button2") return Button2;
+    if (buttonName == "button3") return Button3;
+    if (buttonName == "wheelup" || buttonName == "scrollup") return Button4;
+    if (buttonName == "wheeldown" || buttonName == "scrolldown") return Button5;
     return 0;
 }
+Key IO::handleKeyString(const std::string& keystr) {
+    std::string type = keystr.substr(0, 2);
+    std::string numberStr = keystr.substr(2);
+    Key value;
 
+    // Check for hexadecimal (0x or 0X prefix)
+    if (numberStr.size() > 1 && numberStr[0] == '0' && 
+        (numberStr[1] == 'x' || numberStr[1] == 'X')) {
+        value = std::strtol(numberStr.c_str(), nullptr, 16);
+    } else if (numberStr.size() > 1 && numberStr[0] == '0') {
+        value = std::strtol(numberStr.c_str(), nullptr, 8);
+    } else {
+        value = std::strtol(numberStr.c_str(), nullptr, 10);
+    }
+    KeySym keysym = NoSymbol;
+
+    if (type == "vk") {
+        // For virtual keys, directly convert the value to a KeySym
+        // Assuming value is offset from 'A' as in your original code
+        keysym = XK_A + (value - 1);
+        std::cout << "Virtual Key: " << value << " -> KeySym: " << keysym << std::endl;
+    } 
+    else if (type == "ks") {
+        // For virtual keys, directly convert the value to a KeySym
+        keysym = value;
+        std::cout << "Virtual Key: " << value << " -> KeySym: " << keysym << std::endl;
+    } 
+    else if (type == "sc") {
+        // For scan codes, use XkbKeycodeToKeysym
+        // Note: scan code to keycode mapping might need system-specific adjustment
+        KeyCode keycode = value;
+        keysym = XkbKeycodeToKeysym(display, keycode, 0, 0);
+        std::cout << "Scan Code: " << value << " -> KeySym: " << keysym << std::endl;
+    } 
+    else if (type == "kc") {
+        // For keycodes, use XKeycodeToKeysym
+        KeyCode keycode = value;
+        keysym = XKeycodeToKeysym(display, keycode, 0);
+        std::cout << "Keycode: " << value << " -> KeySym: " << keysym << std::endl;
+    } 
+    else {
+        std::cout << "Unknown key type: " << keystr << std::endl;
+    }
+
+    return keysym;
+}
 // Helper function to convert string to virtual key code
 Key IO::StringToVirtualKey(str keyName)
 {
@@ -222,6 +269,8 @@ Key IO::StringToVirtualKey(str keyName)
     {
         return XStringToKeysym(keyName.c_str());
     }
+    keyName = ToLower(keyName);
+
     if (keyName == "esc")
         return XK_Escape;
     if (keyName == "enter")
@@ -340,7 +389,7 @@ Key IO::StringToVirtualKey(str keyName)
         return XK_KP_Decimal;
     if (keyName == "numpadenter")
         return XK_KP_Enter;
-    if (keyName == "apps")
+    if (keyName == "menu")
         return XK_Menu;
     if (keyName == "printscreen")
         return XK_Print;
@@ -357,7 +406,7 @@ Key IO::StringToVirtualKey(str keyName)
     if (keyName == "mediaplay")
         return XF86XK_AudioPlay;
 
-    return NoSymbol; // Default for unsupported keys}
+    return IO::StringToButton(keyName); // Default for unsupported keys}
 #endif
 }
 void IO::Send(cstr keys)
@@ -374,7 +423,7 @@ void IO::SendX11Key(const std::string &keyName, bool press)
         return;
     }
 
-    KeySym keysym = XStringToKeysym(keyName.c_str());
+    Key keysym = StringToVirtualKey(keyName);
     if (keysym == NoSymbol)
     {
         std::cerr << "Invalid key: " << keyName << std::endl;
@@ -475,32 +524,32 @@ void IO::ProcessKeyCombination(cstr keys)
                 if (sequence == "Alt down")
                 {
                     modifiers |= Mod1Mask;
-                    SendX11Key("Alt_L", true);
+                    SendX11Key("LAlt", true);
                 }
                 else if (sequence == "Alt up")
                 {
                     modifiers &= ~Mod1Mask;
-                    SendX11Key("Alt_L", false);
+                    SendX11Key("LAlt", false);
                 }
                 else if (sequence == "Ctrl down")
                 {
                     modifiers |= ControlMask;
-                    SendX11Key("Control_L", true);
+                    SendX11Key("LCtrl", true);
                 }
                 else if (sequence == "Ctrl up")
                 {
                     modifiers &= ~ControlMask;
-                    SendX11Key("Control_L", false);
+                    SendX11Key("LCtrl", false);
                 }
                 else if (sequence == "Shift down")
                 {
                     modifiers |= ShiftMask;
-                    SendX11Key("Shift_L", true);
+                    SendX11Key("LShift", true);
                 }
                 else if (sequence == "Shift up")
                 {
                     modifiers &= ~ShiftMask;
-                    SendX11Key("Shift_L", false);
+                    SendX11Key("LShift", false);
                 }
                 else
                 {
@@ -519,11 +568,11 @@ void IO::ProcessKeyCombination(cstr keys)
 
     // Release any held modifiers
     if (modifiers & Mod1Mask)
-        SendX11Key("Alt_L", false);
+        SendX11Key("LAlt", false);
     if (modifiers & ControlMask)
-        SendX11Key("Control_L", false);
+        SendX11Key("LCtrl", false);
     if (modifiers & ShiftMask)
-        SendX11Key("Shift_L", false);
+        SendX11Key("LShift", false);
 #endif
 }
 
@@ -547,6 +596,7 @@ bool IO::Suspend(int status)
         {
             if (!hotkey.suspend)
             {
+                #ifdef WINDOWS
                 if (hotkey.blockInput)
                 {
                     AssignHotkey(hotkey, id);
@@ -555,6 +605,9 @@ bool IO::Suspend(int status)
                 {
                     hotkey.enabled = true;
                 }
+                #else
+                    AssignHotkey(hotkey, id);
+                #endif
             }
             else
             {
@@ -575,6 +628,8 @@ bool IO::Suspend(int status)
                 {
 #ifdef WINDOWS
                     UnregisterHotKey(0, id);
+#else
+                    XUngrabKey(display, hotkey.key.virtualKey, hotkey.modifiers, root);
 #endif
                 }
                 hotkey.enabled = false;
@@ -642,6 +697,7 @@ void IO::Hotkey(cstr hotkeyStr, std::function<void()> action, int id)
 #else
         if (id == -1)
             id = ++hotkeyCount;
+        AssignHotkey(hotkey, id);
         hotkeys[id] = hotkey;
 #endif
     }
@@ -723,14 +779,18 @@ void IO::AssignHotkey(HotKey hotkey, int id)
         return;
     }
 
-    // Grab the key globally
-    XGrabKey(display, keycode, hotkey.modifiers, root, True,
-             GrabModeAsync, GrabModeAsync);
+    // Grab the key with the appropriate owner_events based on blockInput
+    Bool owner_events = hotkey.blockInput ? False : True;
 
+    if (XGrabKey(display, keycode, hotkey.modifiers, root, owner_events,
+                    GrabModeAsync, GrabModeAsync) != Success) {
+        std::cerr << "Failed to grab key: " << hotkey.key.name << std::endl;
+    }
     // If mouse buttons are included, grab them too
-    if (hotkey.key.name == "Button1" || hotkey.key.name == "Button2" || hotkey.key.name == "Button3" ||
-        hotkey.key.name == "ScrollUp" || hotkey.key.name == "ScrollDown") {
-        unsigned int button = StringToButton(hotkey.key.name);
+    str kn = ToLower(hotkey.key.name);
+    if (kn == "button1" || kn == "button2" || kn == "button3" ||
+        kn == "scrollup" || kn == "scrolldown" || kn == "wheeldown" || kn == "wheelup") {
+        Key button = IO::StringToButton(kn);
         if (button != 0) {
             XGrabButton(display, button, hotkey.modifiers, DefaultRootWindow(display), True,
                         ButtonPressMask | ButtonReleaseMask, GrabModeAsync, GrabModeAsync, None, None);
@@ -803,7 +863,6 @@ int IO::GetMouse() {
     if (XGrabPointer(display, window, True, ButtonPressMask | PointerMotionMask,
                      GrabModeAsync, GrabModeAsync, None, None, CurrentTime) != GrabSuccess) {
         std::cerr << "Unable to grab pointer!" << std::endl;
-        XCloseDisplay(display);
         return EXIT_FAILURE;
     }
 
@@ -818,7 +877,6 @@ int IO::GetMouse() {
     }
 
     XUngrabPointer(display, CurrentTime);
-    XCloseDisplay(display);
     return 0;
 }
 int IO::GetKeyboard() {
@@ -834,7 +892,6 @@ int IO::GetKeyboard() {
     if (XGrabKeyboard(display, window, True, GrabModeAsync, GrabModeAsync, CurrentTime) != GrabSuccess) {
         std::cerr << "Unable to grab keyboard!" << std::endl;
         XDestroyWindow(display, window);
-        XCloseDisplay(display);
         return EXIT_FAILURE;
     }
 
@@ -881,25 +938,6 @@ void IO::HotkeyListen() {
     XEvent event;
     Display* dis = display;
     
-    // Iterate through all registered hotkeys
-    for (const auto& [id, hotkey] : hotkeys) {
-        if (!hotkey.enabled) continue;
-
-        KeyCode keycode = XKeysymToKeycode(dis, hotkey.key.virtualKey);
-        if (keycode == 0) {
-            std::cerr << "Invalid key: " << hotkey.key.name << std::endl;
-            continue;
-        }
-
-        // Grab the key with the appropriate owner_events based on blockInput
-        Bool owner_events = hotkey.blockInput ? False : True;
-
-        if (XGrabKey(dis, keycode, hotkey.modifiers, root, owner_events,
-                     GrabModeAsync, GrabModeAsync) != Success) {
-            std::cerr << "Failed to grab key: " << hotkey.key.name << std::endl;
-        }
-    }
-
     // Event loop to listen for hotkeys
     while (true) {
         XNextEvent(dis, &event);
@@ -1015,7 +1053,6 @@ void IO::HandleKeyAction(cstr action, cstr keyName)
     if (keysym == NoSymbol)
     {
         std::cerr << "Invalid key: " << keyName << std::endl;
-        XCloseDisplay(display);
         return;
     }
 
@@ -1023,13 +1060,11 @@ void IO::HandleKeyAction(cstr action, cstr keyName)
     if (keycode == 0)
     {
         std::cerr << "Cannot find keycode for " << keyName << std::endl;
-        XCloseDisplay(display);
         return;
     }
 
     XTestFakeKeyEvent(display, keycode, press, CurrentTime);
     XFlush(display);
-    XCloseDisplay(display);
 #endif
 }
 int IO::GetState(cstr keyName, cstr mode) {
