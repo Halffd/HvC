@@ -37,17 +37,20 @@ void HvC(IO io){
     });
     io.Hotkey("numpaddiv", [&io]() {
         io.Send("{volumemute}");
-    });
-    */
+    });`    
     io.Hotkey("menu", [&io]() {
         WindowManager::AltTab();
     });
-
     io.Hotkey("insert", [&io]() {
         H::Window win("A");
         std::cout << win.id << "\n";
         win.Min();
     });
+    */
+   io.Hotkey("kc134", [&io]() {
+        system("plasmashell");
+    });
+ 
     io.Hotkey("&f9", [&io]() {
         io.Suspend();
     });
@@ -58,12 +61,13 @@ void HvC(IO io){
     io.Hotkey("!wheeldown", [&io]() {
         io.Send("^{Down}");
     });
-    io.Hotkey("^.", [&io]() {
+    io.Hotkey("^=", [&io]() {
         io.Send("^{Up}");
     });
-    io.Hotkey("^,", [&io]() {
+    io.Hotkey("^-", [&io]() {
         io.Send("^{Down}");
     });
+    
     io.Hotkey("!Esc", []() {
         exit(0);
     });
