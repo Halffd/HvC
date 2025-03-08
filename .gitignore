@@ -3,6 +3,9 @@ bin
 src/file
 .history
 .cache
+.idea
+.vscode
+cmake-build-debug
 exc/bin
 exc/build
 file
