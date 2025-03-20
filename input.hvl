@@ -1,0 +1,96 @@
+-- Window rules
+windowRules = {
+    {
+        class = "Chrom*",
+        rules = {
+            opacity = config.Get("Window.Opacity", 90),
+            position = "80% 5%",
+            tags = {"web", "work"}
+        }
+    },
+    {
+        title = "Terminal",
+        rules = {
+            alwaysOnTop = true,
+            hotkeys = {
+                {"ctrl+win+[", "io.Send('^Left')"},
+                {"ctrl+win+]", "io.Send('^Right')"}
+            }
+        }
+    }
+}
+
+-- Auto-start applications
+if config.Get("System.AutoStart") then
+    Run("discord")
+    Run("spotify")
+end
+
+-- Custom functions
+function ToggleWorkSetup()
+    local state = stateMgr.Get("workMode", false)
+    stateMgr.Set("workMode", not state)
+    
+    if not state then
+        Run("focus-mode --enable")
+        WindowManager.ManageVirtualDesktops(2)
+    else
+        Run("focus-mode --disable")
+        WindowManager.ManageVirtualDesktops(1)
+    end
+end
+
+hotkeys.Add("ctrl+win+w", ToggleWorkSetup)
+hotkeys.Add("alt+Up", "WindowManager.MoveWindow(1)")
+hotkeys.Add("alt+Down", "WindowManager.MoveWindow(2)")
+hotkeys.Add("alt+Left", "WindowManager.MoveWindow(3)")
+hotkeys.Add("alt+Right", "WindowManager.MoveWindow(4)")
+hotkeys.Add("ctrl+alt+Up", "WindowManager.ResizeWindow(1)")
+hotkeys.Add("ctrl+alt+Down", "WindowManager.ResizeWindow(2)")
+hotkeys.Add("ctrl+alt+Left", "WindowManager.ResizeWindow(3)")
+hotkeys.Add("ctrl+alt+Right", "WindowManager.ResizeWindow(4)")
+hotkeys.Add("win+Left", "WindowManager.SnapWindow(1)")
+hotkeys.Add("win+Right", "WindowManager.SnapWindow(2)")
+hotkeys.Add("ctrl+win+Left", "WindowManager.ManageVirtualDesktops(1)")
+hotkeys.Add("ctrl+win+Right", "WindowManager.ManageVirtualDesktops(2)")
+hotkeys.Add("ctrl+Space", "WindowManager.ToggleAlwaysOnTop()")
+
+; Media Controls
+hotkeys.Add("win+F1", "Run('playerctl previous')")
+hotkeys.Add("win+F2", "Run('playerctl play-pause')")
+hotkeys.Add("win+F3", "Run('playerctl next')")
+hotkeys.Add("win+F4", "Run('pactl set-sink-volume @DEFAULT_SINK@ -5%')")
+hotkeys.Add("win+F5", "Run('pactl set-sink-volume @DEFAULT_SINK@ +5%')")
+
+; Application Shortcuts
+hotkeys.Add("win+t", "Run('alacritty')")
+hotkeys.Add("win+e", "Run('thunar')")
+hotkeys.Add("win+b", "Run('firefox')")
+
+; Conditional Example
+hotkeys.AddContextual("alt+ctrl+r", "Window.SnapAnimation", "WindowManager.SnapWindow(1)")
+
+; Chorded hotkeys
+hotkeys.AddChord("ctrl", "Space", "io.Send('^a')")
+
+; Mouse hotkeys
+hotkeys.Add("win+WheelUp", "WindowManager.ResizeWindow(1, 5)")
+hotkeys.Add("win+WheelDown", "WindowManager.ResizeWindow(2, 5)")
+
+; Timed presses
+hotkeys.Add("F1", function()
+    if io.GetKeyState("Shift") then
+        Run("speedtest-cli")
+    else
+        Run("ping 8.8.8.8")
+    end
+end)
+
+; Context-sensitive hotkeys
+hotkeys.AddContextual("ctrl+t", "Window.Active('Chrom*')", "Run('terminal')")
+
+; Custom functions
+hotkeys.Add("ctrl+alt+d", function()
+    config.Set("UI.Theme", "dark")
+    WindowManager.SetOpacity(config.Get("UI.Opacity", 95))
+end) 

@@ -6,6 +6,16 @@
 #include "core/ConfigManager.hpp"
 #include "core/ScriptEngine.hpp"
 #include <csignal>
+#include "core/HotkeyManager.hpp"
+#include "media/MPVController.hpp"
+#include "core/SocketServer.hpp"
+#include "core/AutoClicker.hpp"
+#include "core/EmergencySystem.hpp"
+#include "core/SequenceDetector.hpp"
+#include "core/Notifier.hpp"
+#include "window/WindowRules.hpp"
+#include "core/MouseGesture.hpp"
+#include "core/MacroSystem.hpp"
 
 // Forward declare test_main
 int test_main(int argc, char* argv[]);
@@ -15,6 +25,22 @@ volatile std::sig_atomic_t gSignalStatus = 0;
 void SignalHandler(int signal) {
     gSignalStatus = signal;
 }
+
+class AppServer : public H::SocketServer {
+protected:
+    void HandleCommand(const std::string& cmd) override {
+        if (cmd == "toggle_mute") ToggleMute();
+        else if (cmd.starts_with("volume:")) {
+            int vol = std::stoi(cmd.substr(7));
+            AdjustVolume(vol);
+        }
+        // Add more command handlers
+    }
+
+private:
+    void ToggleMute() { /* ... */ }
+    void AdjustVolume(int vol) { /* ... */ }
+};
 
 int main(int argc, char* argv[]) {
 #ifdef RUN_TESTS
@@ -80,6 +106,53 @@ int main(int argc, char* argv[]) {
                 wm.CycleWindows()
             end
         )");
+        
+        H::MPVController mpv;
+        AppServer server;
+        
+        // Set up hotkey system
+        H::HotkeyManager hotkeys(*io, *windowManager, mpv);
+        
+        // Start socket server
+        server.Start();
+        
+        H::AutoClicker autoClicker(*io);
+        H::EmergencySystem::RegisterResetHandler(*io);
+
+        // Add sequence detection
+        H::SequenceDetector helpSequence({"h", "e", "l", "p"}, []{
+            Notifier::Show("Help", "Available commands...");
+        });
+
+        io->OnKeyPress([&](const std::string& key){
+            EmergencySystem::TrackKeyPress(key);
+            helpSequence.ProcessEvent(key);
+        });
+
+        // Add autoclicker toggle
+        mappings.Add("enter", [&autoClicker]{
+            autoClicker.Toggle();
+        });
+        
+        H::WindowRules windowRules;
+        windowRules.AddRule({
+            std::regex("Chrom.*"), 
+            std::regex(""), 
+            [](WindowManager& wm){
+                wm.SetOpacity(wm.GetActiveWindow(), 0.9f);
+                wm.MoveWindowToPosition(wm.GetActiveWindow(), 100, 100);
+            }
+        });
+
+        H::MouseGesture gestures(*io);
+        gestures.DefineGesture("CloseTab", {{0,0}, {100,0}}, []{
+            io->Send("^{w}");
+        });
+
+        H::MacroSystem macros(*io);
+        mappings.Add("^#r", [&macros]{ macros.StartRecording(); });
+        mappings.Add("^#s", [&macros]{ macros.StopAndSave("macro1"); });
+        mappings.Add("^#p", [&macros]{ macros.Play("macro1"); });
         
         while (!gSignalStatus) {
             // Check for config changes every second

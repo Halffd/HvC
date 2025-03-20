@@ -930,4 +930,35 @@ void WindowManager::ManageVirtualDesktops(int action) {
 
 // Add similar implementations for other AHK functions...
 
+void WindowManager::SnapWindowWithPadding(int position, int padding) {
+#ifdef __linux__
+    auto* display = H::DisplayManager::GetDisplay();
+    Window win = GetActiveWindow();
+    
+    XWindowAttributes root_attrs;
+    XGetWindowAttributes(display, root, &root_attrs);
+    
+    XWindowAttributes win_attrs;
+    XGetWindowAttributes(display, win, &win_attrs);
+
+    const int screenWidth = root_attrs.width - padding*2;
+    const int screenHeight = root_attrs.height - padding*2;
+    
+    switch(position) {
+        case 1: // Left with padding
+            XMoveResizeWindow(display, win, 
+                padding, padding, 
+                screenWidth/2, screenHeight);
+            break;
+        case 2: // Right with padding
+            XMoveResizeWindow(display, win, 
+                screenWidth/2 + padding, padding, 
+                screenWidth/2, screenHeight);
+            break;
+        // Add other positions...
+    }
+    XFlush(display);
+#endif
+}
+
 } // namespace H
