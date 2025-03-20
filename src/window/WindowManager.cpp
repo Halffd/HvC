@@ -742,45 +742,58 @@ template int64_t WindowManager::Run<ProcessMethod>(str, ProcessMethod, str, str,
 
 // Implementation of AHK-like features
 void WindowManager::MoveWindow(int direction, int distance) {
+    try {
+        if(distance < 1 || distance > 1000) {
+            throw std::range_error("Invalid move distance");
+        }
+
 #ifdef __linux__
-    Display* display = DisplayManager::GetDisplay();
-    Window win = GetActiveWindow();
-    
-    XWindowAttributes attrs;
-    XGetWindowAttributes(display, win, &attrs);
-    
-    int newX = attrs.x;
-    int newY = attrs.y;
-    
-    switch(direction) {
-        case 1: newY -= distance; break; // Up
-        case 2: newY += distance; break; // Down
-        case 3: newX -= distance; break; // Left
-        case 4: newX += distance; break; // Right
-    }
-    
-    XMoveWindow(display, win, newX, newY);
-    XFlush(display);
+        Display* display = H::DisplayManager::GetDisplay();
+        if(!display) throw std::runtime_error("No X11 display");
+
+        Window win = GetActiveWindow();
+        if(win == 0) return;
+
+        XWindowAttributes attrs;
+        if(!XGetWindowAttributes(display, win, &attrs)) {
+            throw std::runtime_error("Failed to get window attributes");
+        }
+
+        int newX = attrs.x;
+        int newY = attrs.y;
+        
+        switch(direction) {
+            case 1: newY -= distance; break; // Up
+            case 2: newY += distance; break; // Down
+            case 3: newX -= distance; break; // Left
+            case 4: newX += distance; break; // Right
+        }
+        
+        XMoveWindow(display, win, newX, newY);
+        XFlush(display);
 #elif _WIN32
-    HWND hwnd = GetForegroundWindow();
-    RECT rect;
-    GetWindowRect(hwnd, &rect);
-    
-    switch(direction) {
-        case 1: rect.top -= distance; rect.bottom -= distance; break;
-        case 2: rect.top += distance; rect.bottom += distance; break;
-        case 3: rect.left -= distance; rect.right -= distance; break;
-        case 4: rect.left += distance; rect.right += distance; break;
-    }
-    
-    MoveWindow(hwnd, rect.left, rect.top, 
-              rect.right - rect.left, rect.bottom - rect.top, TRUE);
+        HWND hwnd = GetForegroundWindow();
+        RECT rect;
+        GetWindowRect(hwnd, &rect);
+        
+        switch(direction) {
+            case 1: rect.top -= distance; rect.bottom -= distance; break;
+            case 2: rect.top += distance; rect.bottom += distance; break;
+            case 3: rect.left -= distance; rect.right -= distance; break;
+            case 4: rect.left += distance; rect.right += distance; break;
+        }
+        
+        MoveWindow(hwnd, rect.left, rect.top, 
+                  rect.right - rect.left, rect.bottom - rect.top, TRUE);
 #endif
+    } catch(const std::exception& e) {
+        std::cerr << "Window move failed: " << e.what() << "\n";
+    }
 }
 
 void WindowManager::ResizeWindow(int direction, int distance) {
 #ifdef __linux__
-    Display* display = DisplayManager::GetDisplay();
+    Display* display = H::DisplayManager::GetDisplay();
     Window win = GetActiveWindow();
     
     XWindowAttributes attrs;
@@ -818,18 +831,26 @@ void WindowManager::ResizeWindow(int direction, int distance) {
 void WindowManager::SnapWindow(int position) {
     // 1=Left, 2=Right, 3=Top, 4=Bottom, 5=TopLeft, 6=TopRight, 7=BottomLeft, 8=BottomRight
 #ifdef __linux__
-    Display* display = DisplayManager::GetDisplay();
+    auto* display = H::DisplayManager::GetDisplay();
+    if(!display) return;
+    
+    Window root = H::DisplayManager::GetRootWindow();
     Window win = GetActiveWindow();
-    Window root = DisplayManager::GetRootWindow();
     
     XWindowAttributes root_attrs;
-    XGetWindowAttributes(display, root, &root_attrs);
+    if(!XGetWindowAttributes(display, root, &root_attrs)) {
+        std::cerr << "Failed to get root window attributes\n";
+        return;
+    }
+    
+    XWindowAttributes win_attrs;
+    if(!XGetWindowAttributes(display, win, &win_attrs)) {
+        std::cerr << "Failed to get window attributes\n";
+        return;
+    }
     
     int screenWidth = root_attrs.width;
     int screenHeight = root_attrs.height;
-    
-    XWindowAttributes win_attrs;
-    XGetWindowAttributes(display, win, &win_attrs);
     
     int newX = win_attrs.x;
     int newY = win_attrs.y;
@@ -858,9 +879,14 @@ void WindowManager::SnapWindow(int position) {
 }
 
 void WindowManager::ManageVirtualDesktops(int action) {
-    // action: 1=Next, 2=Previous, 3=MoveWindowNext, 4=MoveWindowPrev
 #ifdef __linux__
-    Display* display = DisplayManager::GetDisplay();
+    auto* display = H::DisplayManager::GetDisplay();
+    if(!display) {
+        std::cerr << "Cannot manage desktops - no X11 display\n";
+        return;
+    }
+    
+    Window root = H::DisplayManager::GetRootWindow();
     Atom desktopAtom = XInternAtom(display, "_NET_CURRENT_DESKTOP", False);
     Atom desktopCountAtom = XInternAtom(display, "_NET_NUMBER_OF_DESKTOPS", False);
     
@@ -870,14 +896,14 @@ void WindowManager::ManageVirtualDesktops(int action) {
     Atom type;
     
     // Get current desktop
-    XGetWindowProperty(display, DisplayManager::GetRootWindow(), desktopAtom,
+    XGetWindowProperty(display, root, desktopAtom,
                       0, 1, False, XA_CARDINAL, &type, &format, &nitems, &bytes, &data);
     
     int currentDesktop = *(int*)data;
     XFree(data);
     
     // Get total desktops
-    XGetWindowProperty(display, DisplayManager::GetRootWindow(), desktopCountAtom,
+    XGetWindowProperty(display, root, desktopCountAtom,
                       0, 1, False, XA_CARDINAL, &type, &format, &nitems, &bytes, &data);
     
     int totalDesktops = *(int*)data;
@@ -896,7 +922,7 @@ void WindowManager::ManageVirtualDesktops(int action) {
     event.xclient.data.l[0] = newDesktop;
     event.xclient.data.l[1] = CurrentTime;
     
-    XSendEvent(display, DisplayManager::GetRootWindow(), False,
+    XSendEvent(display, root, False,
               SubstructureRedirectMask | SubstructureNotifyMask, &event);
     XFlush(display);
 #endif

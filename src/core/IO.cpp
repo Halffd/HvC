@@ -1121,3 +1121,22 @@ int IO::GetState(cstr keyName, cstr mode) {
 #endif
     return 0;
 }
+
+void IO::PressKey(const std::string& keyName, bool press) {
+#ifdef __linux__
+    auto* display = H::DisplayManager::GetDisplay();
+    if(!display) {
+        std::cerr << "No X11 display available for key press\n";
+        return;
+    }
+    
+    KeyCode keycode = XKeysymToKeycode(display, StringToVirtualKey(keyName));
+    if(keycode == 0) {
+        std::cerr << "Invalid keycode for: " << keyName << "\n";
+        return;
+    }
+    
+    XTestFakeKeyEvent(display, keycode, press, CurrentTime);
+    XFlush(display);
+#endif
+}

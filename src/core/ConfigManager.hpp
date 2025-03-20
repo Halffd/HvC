@@ -5,6 +5,7 @@
 #include <fstream>
 #include <sstream>
 #include "types.hpp"
+#include <filesystem>
 
 namespace H {
 
@@ -35,11 +36,20 @@ public:
         }
     }
 
-    void BindHotkeys(class IO& io) {
-        for (const auto& [keyCombo, command] : hotkeys) {
-            io.Hotkey(keyCombo, [this, command]() {
-                ExecuteCommand(command);
-            });
+    void BindHotkeys(IO& io) {
+        try {
+            for (const auto& [keyCombo, command] : hotkeys) {
+                try {
+                    io.Hotkey(keyCombo, [this, command]() {
+                        SafeExecute(command);
+                    });
+                } catch(const std::exception& e) {
+                    std::cerr << "Failed to bind hotkey '" << keyCombo 
+                              << "': " << e.what() << "\n";
+                }
+            }
+        } catch(...) {
+            std::cerr << "Critical error in hotkey binding system\n";
         }
     }
 
@@ -56,37 +66,76 @@ public:
         return it != hotkeys.end() ? it->second : "";
     }
 
+    void Reload() {
+        auto oldHotkeys = hotkeys;
+        Load();
+        if(hotkeys != oldHotkeys) {
+            needsRebind = true;
+        }
+    }
+
+    bool CheckRebind() {
+        if(needsRebind) {
+            needsRebind = false;
+            return true;
+        }
+        return false;
+    }
+
 private:
     std::unordered_map<std::string, std::string> hotkeys;
+    bool needsRebind = false;
 
     void ExecuteCommand(const std::string& command) {
-        // Implement command parsing and execution
-        if (command.starts_with("WindowManager::")) {
-            HandleWindowCommand(command);
+        try {
+            if(command.empty()) return;
+            
+            // Split command into parts
+            std::vector<std::string> parts;
+            std::istringstream iss(command);
+            std::string part;
+            while(std::getline(iss, part, ' ')) {
+                if(!part.empty()) parts.push_back(part);
+            }
+            
+            if(parts[0] == "Run") {
+                if(parts.size() >= 2) {
+                    std::string args = parts.size() > 2 ? 
+                        command.substr(command.find(parts[2])) : "";
+                    WindowManager::Run(parts[1], ProcessMethod::ForkProcess, 
+                                     "normal", args, 0);
+                }
+            }
+            else if(parts[0] == "Send") {
+                if(parts.size() >= 2) {
+                    io.Send(command.substr(command.find(parts[1])));
+                }
+            }
+            else if(parts[0] == "If") {
+                // Simple condition support
+                if(parts.size() >= 4 && parts[2] == "==") {
+                    std::string var = config.Get<std::string>(parts[1], "");
+                    if(var == parts[3]) {
+                        ExecuteCommand(command.substr(command.find(parts[4])));
+                    }
+                }
+            }
+            // Add other command types...
         }
-        else if (command.starts_with("IO::")) {
-            HandleIOCommand(command);
+        catch(const std::exception& e) {
+            std::cerr << "Command error: " << e.what() << std::endl;
         }
     }
 
-    void HandleWindowCommand(const std::string& command) {
-        size_t pos = command.find('(');
-        std::string func = command.substr(15, pos-15);
-        std::string args = command.substr(pos+1, command.find(')')-pos-1);
-
-        if (func == "MoveWindow") {
-            int dir = std::stoi(args);
-            WindowManager::MoveWindow(dir);
+    void SafeExecute(const std::string& command) noexcept {
+        try {
+            ExecuteCommand(command);
+        } catch(const std::exception& e) {
+            std::cerr << "Command execution failed: " << e.what() 
+                      << " (Command: " << command << ")\n";
+        } catch(...) {
+            std::cerr << "Unknown error executing command: " << command << "\n";
         }
-        else if (func == "ResizeWindow") {
-            int dir = std::stoi(args);
-            WindowManager::ResizeWindow(dir);
-        }
-        // Add other window commands...
-    }
-
-    void HandleIOCommand(const std::string& command) {
-        // Similar implementation for IO commands
     }
 };
 
@@ -162,8 +211,90 @@ public:
         settings[key] = value;
     }
 
+    template<typename T>
+    void Watch(const std::string& key, std::function<void(T,T)> callback) {
+        watchers[key].push_back([=](const std::string& oldVal, const std::string& newVal) {
+            T oldT = Convert<T>(oldVal);
+            T newT = Convert<T>(newVal);
+            callback(oldT, newT);
+        });
+    }
+
+    void Reload() {
+        auto oldSettings = settings;
+        Load();
+        
+        for(const auto& [key, newVal] : settings) {
+            if(oldSettings[key] != newVal) {
+                for(auto& watcher : watchers[key]) {
+                    watcher(oldSettings[key], newVal);
+                }
+            }
+        }
+    }
+
+    void Validate() const {
+        const std::set<std::string> validKeys = {
+            "Window.MoveSpeed", "Window.ResizeSpeed", 
+            "Hotkeys.GlobalSuspend", "UI.Theme"
+        };
+
+        for(const auto& [key, val] : settings) {
+            if(validKeys.find(key) == validKeys.end()) {
+                std::cerr << "Warning: Unknown config key '" << key << "'\n";
+            }
+        }
+    }
+
+    template<typename T>
+    T Get(const std::string& key, T defaultValue, T min, T max) const {
+        T value = Get(key, defaultValue);
+        if(value < min || value > max) {
+            std::cerr << "Config value out of range: " << key 
+                      << "=" << value << " (Valid: " 
+                      << min << "-" << max << ")\n";
+            return defaultValue;
+        }
+        return value;
+    }
+
 private:
     std::unordered_map<std::string, std::string> settings;
+    std::unordered_map<std::string, std::vector<std::function<void(std::string, std::string)>>> watchers;
+
+    template<typename T>
+    static T Convert(const std::string& val) {
+        std::istringstream iss(val);
+        T result;
+        iss >> result;
+        return result;
+    }
 };
+
+void BackupConfig(const std::string& path = "config.cfg") {
+    namespace fs = std::filesystem;
+    try {
+        fs::path configPath(path);
+        if(fs::exists(configPath)) {
+            fs::path backup = configPath;
+            backup += ".bak";
+            fs::copy_file(configPath, backup, fs::copy_options::overwrite_existing);
+        }
+    } catch(const fs::filesystem_error& e) {
+        std::cerr << "Config backup failed: " << e.what() << "\n";
+    }
+}
+
+void RestoreConfig(const std::string& path = "config.cfg") {
+    namespace fs = std::filesystem;
+    try {
+        fs::path backup(path + ".bak");
+        if(fs::exists(backup)) {
+            fs::copy_file(backup, path, fs::copy_options::overwrite_existing);
+        }
+    } catch(const fs::filesystem_error& e) {
+        std::cerr << "Config restore failed: " << e.what() << "\n";
+    }
+}
 
 } // namespace H 
