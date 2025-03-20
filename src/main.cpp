@@ -1,85 +1,52 @@
-#include "Window.hpp"
-#include "IO.hpp"
 #include <iostream>
 #include <thread>
+#include <memory>
+#include "window/WindowManager.hpp"
+#include "core/IO.hpp"
 
-IO io;
-void HvC(IO io){
-    /*
-    io.Hotkey("w", [&io]() {
-        io.Send("{up}");
-    });
-    io.Hotkey("a", [&io]() {
-        io.Send("{left}");
-    });
-    io.Hotkey("s", [&io]() {
-        io.Send("{down}");
-    });
-    io.Hotkey("d", [&io]() {
-        H::Window win("exe mpv");
-        std::cout << win.id << "\n";
-        win.Min();
-    });
-    io.Hotkey("ks0x5c", [&io]() {
-        io.Send("\\");
-    });
-    io.Hotkey("rctrl", [&io]() {
-        io.Send("{mediaplay}");
-    });
-    io.Hotkey("f6", [&io]() {
-        io.Send("{mediaplay}");
-    });
-    io.Hotkey("numpadadd", [&io]() {
-        io.Send("{volumeup}");
-    });
-    io.Hotkey("numpadsub", [&io]() {
-        io.Send("{volumedown}");
-    });
-    io.Hotkey("numpaddiv", [&io]() {
-        io.Send("{volumemute}");
-    });`    
-    io.Hotkey("menu", [&io]() {
-        WindowManager::AltTab();
-    });
-    io.Hotkey("insert", [&io]() {
-        H::Window win("A");
-        std::cout << win.id << "\n";
-        win.Min();
-    });
-    */
-   io.Hotkey("kc134", [&io]() {
-        system("plasmashell");
-    });
- 
-    io.Hotkey("&f9", [&io]() {
-        io.Suspend();
-    });
-    
-    io.Hotkey("!wheelup", [&io]() {
-        io.Send("^{Up}");
-    });
-    io.Hotkey("!wheeldown", [&io]() {
-        io.Send("^{Down}");
-    });
-    io.Hotkey("^=", [&io]() {
-        io.Send("^{Up}");
-    });
-    io.Hotkey("^-", [&io]() {
-        io.Send("^{Down}");
-    });
-    
-    io.Hotkey("!Esc", []() {
-        exit(0);
-    });
-    io.HotkeyListen();
-}
+// Forward declare test_main
+int test_main(int argc, char* argv[]);
 
-// Main function (should be placed in a separate file, e.g., main.cpp)
-int main() {
-    WindowManager w;
-    //w.SetPriority(5);
-    lo << "Hello";
-    HvC(io);
-    
-    return 0;
+int main(int argc, char* argv[]) {
+#ifdef RUN_TESTS
+    return test_main(argc, argv);
+#else
+    try {
+        // Create a WindowManager instance
+        auto windowManager = std::make_unique<H::WindowManager>();
+        std::cout << "Detected window manager: " << windowManager->GetCurrentWMName() << std::endl;
+        
+        if (!windowManager->IsWMSupported()) {
+            std::cerr << "Warning: Current window manager may not be fully supported\n";
+        }
+        
+        // Create an IO instance
+        auto io = std::make_shared<H::IO>();
+        
+        // Register some hotkeys
+        io->Hotkey("f9", [&io]() {
+            io->Suspend();
+        });
+        
+        io->Hotkey("!Esc", [&io]() {
+            io->Suspend();
+            exit(0);
+        });
+        
+        // Start listening for hotkeys
+        io->HotkeyListen();
+        
+        // Keep the main thread alive
+        std::cout << "Press Esc to exit" << std::endl;
+        while (true) {
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+        }
+        
+        return 0;
+    }
+    catch (const std::exception& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        return 1;
+    }
+#endif
 }

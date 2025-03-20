@@ -4,8 +4,20 @@ project(hvc CXX)
 # Create a boolean option for assembly generation
 option(GENERATE_ASM "Generate assembly files" OFF)
 
-file(GLOB_RECURSE source_files "src/*.cpp")
+# Add option to enable/disable tests
+option(ENABLE_TESTS "Enable testing" OFF)
+
+# Exclude GUI files for now
+file(GLOB_RECURSE source_files 
+    "src/*.cpp"
+    "src/core/*.cpp"
+    "src/window/*.cpp"
+    "src/utils/*.cpp"
+)
 file(GLOB_RECURSE source_c_files "src/*.c")
+
+# Exclude GUI files
+list(FILTER source_files EXCLUDE REGEX "src/gui/.*\\.cpp$")
 
 set(src ${source_files} ${source_c_files})
 
@@ -36,7 +48,7 @@ if(GENERATE_ASM)
         get_filename_component(source_name ${source_file} NAME_WE)
         add_custom_command(
             OUTPUT ${CMAKE_ASM_OUTPUT_DIRECTORY}/${source_name}.s  # Assembly output file
-            COMMAND ${CMAKE_C_COMPILER} -I${LUAJIT_DIR}/include -I${CMAKE_SOURCE_DIR}/lib -g -S -O0 ${source_file} -o ${CMAKE_ASM_OUTPUT_DIRECTORY}/${source_name}.s
+            COMMAND ${CMAKE_C_COMPILER} -I${CMAKE_SOURCE_DIR}/include -I${CMAKE_SOURCE_DIR}/lib -g -S -O0 ${source_file} -o ${CMAKE_ASM_OUTPUT_DIRECTORY}/${source_name}.s
             DEPENDS ${source_file}
             COMMENT "Generating assembly for ${source_file}"
         )
@@ -57,18 +69,10 @@ if(UNIX AND NOT APPLE)
         message(FATAL_ERROR "X11 library not found!")
     endif()
 
-    # Optionally, find other packages as needed
-    # find_package(AnotherLibrary REQUIRED)
-    # if(AnotherLibrary_FOUND)
-    #     target_link_libraries(hvc AnotherLibrary::AnotherLibrary)
-    # endif()
-
     # Define any Linux-specific macros
-    target_compile_definitions(hvc PRIVATE LINUX)
+    target_compile_definitions(hvc PRIVATE __linux__)
+endif()
 
-    # Include directories for Linux-specific libraries
-    #include_directories("/path/to/linux/include")  # Adjust the path as necessary
-
-    # Optionally, you can set up library paths
-    #link_directories("/path/to/linux/lib")  # Adjust the path as necessary
+if(ENABLE_TESTS)
+    add_definitions(-DRUN_TESTS)
 endif()

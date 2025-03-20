@@ -3,6 +3,7 @@
 
 #include "WindowManager.hpp"
 #include "Rect.hpp"
+#include "types.hpp"
 
 namespace H {
     class Window : public WindowManager {
@@ -14,14 +15,15 @@ namespace H {
         #endif
 
         Window(cstr identifier, const int method = 1);
-
         wID Find2(cstr identifier, cstr type = "title");
-        template<typename T> wID FindT(const T& identifier);
+        
+        template<typename T> wID FindT(const T& identifier) {
+            return Find(identifier);
+        }
 
         str Title(wID win = 0);
         bool Active(wID win = 0);
         bool Exists(wID win);
-
         void Activate(wID win = 0);
         void Close(wID win = 0);
         void Min(wID win = 0);

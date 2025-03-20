@@ -7,7 +7,7 @@
 #include <unordered_map>
 #include <thread>
 #include <chrono>
-#include "WindowManager.hpp"
+#include "../window/WindowManager.hpp"
 
 struct HotKey {
     int modifiers; // Modifier mask (Ctrl, Alt, Shift, etc.)
