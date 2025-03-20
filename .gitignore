@@ -11,3 +11,4 @@ exc/build
 file
 src/out
 log
+*.cfg

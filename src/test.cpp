@@ -133,6 +133,26 @@ void windowsTest(H::WindowManager w){
     // win.Activate();
 }
 
+void setupAHKHotkeys(H::IO& io) {
+    io.Hotkey("!Up", []{ H::WindowManager::MoveWindow(1); });
+    io.Hotkey("!Down", []{ H::WindowManager::MoveWindow(2); });
+    io.Hotkey("!Left", []{ H::WindowManager::MoveWindow(3); });
+    io.Hotkey("!Right", []{ H::WindowManager::MoveWindow(4); });
+    
+    io.Hotkey("^!Up", []{ H::WindowManager::ResizeWindow(1); });
+    io.Hotkey("^!Down", []{ H::WindowManager::ResizeWindow(2); });
+    io.Hotkey("^!Left", []{ H::WindowManager::ResizeWindow(3); });
+    io.Hotkey("^!Right", []{ H::WindowManager::ResizeWindow(4); });
+    
+    io.Hotkey("#Left", []{ H::WindowManager::SnapWindow(1); });
+    io.Hotkey("#Right", []{ H::WindowManager::SnapWindow(2); });
+    
+    io.Hotkey("^#Left", []{ H::WindowManager::ManageVirtualDesktops(1); });
+    io.Hotkey("^#Right", []{ H::WindowManager::ManageVirtualDesktops(2); });
+    
+    io.Hotkey("^Space", []{ H::WindowManager::ToggleAlwaysOnTop(); });
+}
+
 void test(H::IO& io){
     std::cout << "Running tests...\n";
     

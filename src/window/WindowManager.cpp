@@ -740,4 +740,168 @@ template int64_t WindowManager::Run<int>(str, int, str, str, int);
 template int64_t WindowManager::Run<str>(str, str, str, str, int);
 template int64_t WindowManager::Run<ProcessMethod>(str, ProcessMethod, str, str, int);
 
+// Implementation of AHK-like features
+void WindowManager::MoveWindow(int direction, int distance) {
+#ifdef __linux__
+    Display* display = DisplayManager::GetDisplay();
+    Window win = GetActiveWindow();
+    
+    XWindowAttributes attrs;
+    XGetWindowAttributes(display, win, &attrs);
+    
+    int newX = attrs.x;
+    int newY = attrs.y;
+    
+    switch(direction) {
+        case 1: newY -= distance; break; // Up
+        case 2: newY += distance; break; // Down
+        case 3: newX -= distance; break; // Left
+        case 4: newX += distance; break; // Right
+    }
+    
+    XMoveWindow(display, win, newX, newY);
+    XFlush(display);
+#elif _WIN32
+    HWND hwnd = GetForegroundWindow();
+    RECT rect;
+    GetWindowRect(hwnd, &rect);
+    
+    switch(direction) {
+        case 1: rect.top -= distance; rect.bottom -= distance; break;
+        case 2: rect.top += distance; rect.bottom += distance; break;
+        case 3: rect.left -= distance; rect.right -= distance; break;
+        case 4: rect.left += distance; rect.right += distance; break;
+    }
+    
+    MoveWindow(hwnd, rect.left, rect.top, 
+              rect.right - rect.left, rect.bottom - rect.top, TRUE);
+#endif
+}
+
+void WindowManager::ResizeWindow(int direction, int distance) {
+#ifdef __linux__
+    Display* display = DisplayManager::GetDisplay();
+    Window win = GetActiveWindow();
+    
+    XWindowAttributes attrs;
+    XGetWindowAttributes(display, win, &attrs);
+    
+    int newWidth = attrs.width;
+    int newHeight = attrs.height;
+    
+    switch(direction) {
+        case 1: newHeight -= distance; break; // Up
+        case 2: newHeight += distance; break; // Down
+        case 3: newWidth -= distance; break; // Left
+        case 4: newWidth += distance; break; // Right
+    }
+    
+    XResizeWindow(display, win, newWidth, newHeight);
+    XFlush(display);
+#elif _WIN32
+    HWND hwnd = GetForegroundWindow();
+    RECT rect;
+    GetWindowRect(hwnd, &rect);
+    
+    switch(direction) {
+        case 1: rect.bottom -= distance; break;
+        case 2: rect.bottom += distance; break;
+        case 3: rect.right -= distance; break;
+        case 4: rect.right += distance; break;
+    }
+    
+    MoveWindow(hwnd, rect.left, rect.top, 
+              rect.right - rect.left, rect.bottom - rect.top, TRUE);
+#endif
+}
+
+void WindowManager::SnapWindow(int position) {
+    // 1=Left, 2=Right, 3=Top, 4=Bottom, 5=TopLeft, 6=TopRight, 7=BottomLeft, 8=BottomRight
+#ifdef __linux__
+    Display* display = DisplayManager::GetDisplay();
+    Window win = GetActiveWindow();
+    Window root = DisplayManager::GetRootWindow();
+    
+    XWindowAttributes root_attrs;
+    XGetWindowAttributes(display, root, &root_attrs);
+    
+    int screenWidth = root_attrs.width;
+    int screenHeight = root_attrs.height;
+    
+    XWindowAttributes win_attrs;
+    XGetWindowAttributes(display, win, &win_attrs);
+    
+    int newX = win_attrs.x;
+    int newY = win_attrs.y;
+    int newWidth = win_attrs.width;
+    int newHeight = win_attrs.height;
+    
+    switch(position) {
+        case 1: // Left half
+            newWidth = screenWidth/2;
+            newHeight = screenHeight;
+            newX = 0;
+            newY = 0;
+            break;
+        case 2: // Right half
+            newWidth = screenWidth/2;
+            newHeight = screenHeight;
+            newX = screenWidth/2;
+            newY = 0;
+            break;
+        // Add other positions...
+    }
+    
+    XMoveResizeWindow(display, win, newX, newY, newWidth, newHeight);
+    XFlush(display);
+#endif
+}
+
+void WindowManager::ManageVirtualDesktops(int action) {
+    // action: 1=Next, 2=Previous, 3=MoveWindowNext, 4=MoveWindowPrev
+#ifdef __linux__
+    Display* display = DisplayManager::GetDisplay();
+    Atom desktopAtom = XInternAtom(display, "_NET_CURRENT_DESKTOP", False);
+    Atom desktopCountAtom = XInternAtom(display, "_NET_NUMBER_OF_DESKTOPS", False);
+    
+    unsigned long nitems, bytes;
+    unsigned char *data = NULL;
+    int format;
+    Atom type;
+    
+    // Get current desktop
+    XGetWindowProperty(display, DisplayManager::GetRootWindow(), desktopAtom,
+                      0, 1, False, XA_CARDINAL, &type, &format, &nitems, &bytes, &data);
+    
+    int currentDesktop = *(int*)data;
+    XFree(data);
+    
+    // Get total desktops
+    XGetWindowProperty(display, DisplayManager::GetRootWindow(), desktopCountAtom,
+                      0, 1, False, XA_CARDINAL, &type, &format, &nitems, &bytes, &data);
+    
+    int totalDesktops = *(int*)data;
+    XFree(data);
+    
+    int newDesktop = currentDesktop;
+    switch(action) {
+        case 1: newDesktop = (currentDesktop + 1) % totalDesktops; break;
+        case 2: newDesktop = (currentDesktop - 1 + totalDesktops) % totalDesktops; break;
+    }
+    
+    XEvent event;
+    event.xclient.type = ClientMessage;
+    event.xclient.message_type = desktopAtom;
+    event.xclient.format = 32;
+    event.xclient.data.l[0] = newDesktop;
+    event.xclient.data.l[1] = CurrentTime;
+    
+    XSendEvent(display, DisplayManager::GetRootWindow(), False,
+              SubstructureRedirectMask | SubstructureNotifyMask, &event);
+    XFlush(display);
+#endif
+}
+
+// Add similar implementations for other AHK functions...
+
 } // namespace H

@@ -57,6 +57,27 @@ public:
     static str GetIdentifierValue(cstr identifier);
     static str getProcessName(pid_t windowPID);
 
+    // Add to WindowManager class
+    static void MoveWindow(int direction, int distance = 10);
+    static void ResizeWindow(int direction, int distance = 10);
+    static void ToggleAlwaysOnTop();
+    static void SendToMonitor(int monitorIndex);
+    static void SnapWindow(int position);
+    static void RotateWindow();
+    static void ManageVirtualDesktops(int action);
+    static void WindowSpy();
+    static void MouseDrag();
+    static void ClickThrough();
+    static void ToggleClickLock();
+    static void AltTabMenu();
+    static void WinClose();
+    static void WinMinimize();
+    static void WinMaximize();
+    static void WinRestore();
+    static void WinTransparent();
+    static void WinMoveResize();
+    static void WinSetAlwaysOnTop(bool onTop);
+
 private:
     static bool InitializeX11();
     std::string DetectWindowManager() const;
