@@ -6,6 +6,10 @@ HHOOK IO::keyboardHook = NULL;
 std::unordered_map<int, HotKey> IO::hotkeys; // Map to store hotkeys by ID
 IO::IO()
 {
+    H::DisplayManager::Initialize();
+    Display* display = H::DisplayManager::GetDisplay();
+    Window root = H::DisplayManager::GetRootWindow();
+
 #if defined(__linux__)
     if (!display){
         display = XOpenDisplay(nullptr);
@@ -1038,7 +1042,7 @@ void IO::HandleKeyAction(cstr action, cstr keyName)
     }
 #elif defined(WAYLAND)
     // Implementation depends on Wayland compositor capabilities.
-    // Typically requires using libinput or the compositor’s client API.
+    // Typically requires using libinput or the compositor's client API.
     std::cerr << "Wayland key simulation not yet implemented." << std::endl;
 #else
     bool press = action == "down";
