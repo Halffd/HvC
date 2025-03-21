@@ -39,6 +39,12 @@ public:
     static void removeSpecialCharacters(std::string& keyName);
 
 private:
+    Display* display{nullptr};
+    Window root{0};
+    Display* display{nullptr};
+    Window root{0};
+    Display* display{nullptr};
+    Window root{0};
     int GetKeyboard();
     int GetMouse();
     void HandleMouseEvent(XEvent& event);

@@ -9,7 +9,7 @@
 #include <sys/time.h>
 // Define LOGFILE for logging purposes
 // Uncomment and define LOGFILE as needed
-#define LOGFILE "../log/log.txt"
+#define LOGFILE "log/debug.log"
 #define TIME_LEN 150
 #define BUFFER_SIZE 4096
 

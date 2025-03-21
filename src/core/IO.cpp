@@ -1,3 +1,5 @@
+#include "logger.h"
+#include "x11_includes.h"
 #include "IO.hpp"
 
 #if defined(WINDOWS)

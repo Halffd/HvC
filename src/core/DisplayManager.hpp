@@ -84,4 +84,8 @@ private:
     using XColormap = X11Resource<Colormap, XFreeColormap>;
 };
 
+// Static member initialization
+Display* DisplayManager::display = nullptr;
+Window DisplayManager::root = 0;
+
 } // namespace H 

@@ -1,3 +1,4 @@
+#include "logger.h"
  #include "Printer.h"
 
 // Variadic template function for printing with a delimiter

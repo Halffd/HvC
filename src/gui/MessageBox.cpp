@@ -1,3 +1,4 @@
+#include "x11_includes.h"
 #include "Screen.hpp"
 #include <cmath>
 

@@ -9,6 +9,41 @@
 
 namespace H {
 
+// Path handling helper functions
+namespace ConfigPaths {
+    // Config base directory
+    static const std::string CONFIG_DIR = "config/";
+    
+    // Config file paths
+    static const std::string MAIN_CONFIG = CONFIG_DIR + "main.cfg";
+    static const std::string INPUT_CONFIG = CONFIG_DIR + "input.cfg";
+    static const std::string HOTKEYS_DIR = CONFIG_DIR + "hotkeys/";
+    
+    // Get path for a config file
+    inline std::string GetConfigPath(const std::string& filename) {
+        if (filename.find('/') != std::string::npos) {
+            // If already contains a path separator, use as-is
+            return filename;
+        }
+        return CONFIG_DIR + filename;
+    }
+    
+    // Ensure config directory exists
+    inline void EnsureConfigDir() {
+        namespace fs = std::filesystem;
+        try {
+            if (!fs::exists(CONFIG_DIR)) {
+                fs::create_directories(CONFIG_DIR);
+            }
+            if (!fs::exists(HOTKEYS_DIR)) {
+                fs::create_directories(HOTKEYS_DIR);
+            }
+        } catch (const fs::filesystem_error& e) {
+            std::cerr << "Failed to create config directories: " << e.what() << "\n";
+        }
+    }
+}
+
 class Mappings {
 public:
     static Mappings& Get() {
@@ -17,7 +52,13 @@ public:
     }
 
     void Load(const std::string& filename = "input.cfg") {
-        std::ifstream file(filename);
+        std::string configPath = ConfigPaths::GetConfigPath(filename);
+        std::ifstream file(configPath);
+        if (!file.is_open()) {
+            std::cerr << "Warning: Could not open input config file: " << configPath << std::endl;
+            return;
+        }
+        
         std::string line;
         while (std::getline(file, line)) {
             size_t delim = line.find('=');
@@ -30,7 +71,15 @@ public:
     }
 
     void Save(const std::string& filename = "input.cfg") {
-        std::ofstream file(filename);
+        std::string configPath = ConfigPaths::GetConfigPath(filename);
+        ConfigPaths::EnsureConfigDir();
+        
+        std::ofstream file(configPath);
+        if (!file.is_open()) {
+            std::cerr << "Error: Could not save input config file: " << configPath << std::endl;
+            return;
+        }
+        
         for (const auto& [key, value] : hotkeys) {
             file << key << "=" << value << "\n";
         }
@@ -146,8 +195,14 @@ public:
         return instance;
     }
 
-    void Load(const std::string& filename = "config.cfg") {
-        std::ifstream file(filename);
+    void Load(const std::string& filename = "main.cfg") {
+        std::string configPath = ConfigPaths::GetConfigPath(filename);
+        std::ifstream file(configPath);
+        if (!file.is_open()) {
+            std::cerr << "Warning: Could not open config file: " << configPath << std::endl;
+            return;
+        }
+        
         std::string line, currentSection;
         while (std::getline(file, line)) {
             if (line.empty() || line[0] == ';') continue;
@@ -166,8 +221,16 @@ public:
         }
     }
 
-    void Save(const std::string& filename = "config.cfg") {
-        std::ofstream file(filename);
+    void Save(const std::string& filename = "main.cfg") {
+        std::string configPath = ConfigPaths::GetConfigPath(filename);
+        ConfigPaths::EnsureConfigDir();
+        
+        std::ofstream file(configPath);
+        if (!file.is_open()) {
+            std::cerr << "Error: Could not save config file: " << configPath << std::endl;
+            return;
+        }
+        
         std::string currentSection;
         
         for (const auto& [key, value] : settings) {
@@ -271,26 +334,26 @@ private:
     }
 };
 
-void BackupConfig(const std::string& path = "config.cfg") {
+void BackupConfig(const std::string& path = "main.cfg") {
+    std::string configPath = ConfigPaths::GetConfigPath(path);
     namespace fs = std::filesystem;
     try {
-        fs::path configPath(path);
+        fs::path backupPath = configPath + ".bak";
         if(fs::exists(configPath)) {
-            fs::path backup = configPath;
-            backup += ".bak";
-            fs::copy_file(configPath, backup, fs::copy_options::overwrite_existing);
+            fs::copy_file(configPath, backupPath, fs::copy_options::overwrite_existing);
         }
     } catch(const fs::filesystem_error& e) {
         std::cerr << "Config backup failed: " << e.what() << "\n";
     }
 }
 
-void RestoreConfig(const std::string& path = "config.cfg") {
+void RestoreConfig(const std::string& path = "main.cfg") {
+    std::string configPath = ConfigPaths::GetConfigPath(path);
     namespace fs = std::filesystem;
     try {
-        fs::path backup(path + ".bak");
-        if(fs::exists(backup)) {
-            fs::copy_file(backup, path, fs::copy_options::overwrite_existing);
+        fs::path backupPath = configPath + ".bak";
+        if(fs::exists(backupPath)) {
+            fs::copy_file(backupPath, configPath, fs::copy_options::overwrite_existing);
         }
     } catch(const fs::filesystem_error& e) {
         std::cerr << "Config restore failed: " << e.what() << "\n";

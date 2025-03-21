@@ -64,15 +64,39 @@ if(UNIX AND NOT APPLE)
     find_package(X11 REQUIRED)
     if(X11_FOUND)
         include_directories(${X11_INCLUDE_DIR})
-        target_link_libraries(hvc ${X11_LIBRARIES} Xtst)
+        target_link_libraries(hvc PRIVATE ${X11_LIBRARIES} Xtst)
     else()
         message(FATAL_ERROR "X11 library not found!")
     endif()
 
-    # Define any Linux-specific macros
+    # Add XKB library
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(XKB REQUIRED xkbcommon)
+    if(XKB_FOUND)
+        include_directories(${XKB_INCLUDE_DIRS})
+        target_link_libraries(hvc PRIVATE ${XKB_LIBRARIES})
+    endif()
+
+    # Add XF86 keysym support
     target_compile_definitions(hvc PRIVATE __linux__)
 endif()
 
 if(ENABLE_TESTS)
     add_definitions(-DRUN_TESTS)
+endif()
+
+# Find Lua
+find_package(Lua REQUIRED)
+include_directories(${LUA_INCLUDE_DIR})
+
+# Add to executable target
+target_link_libraries(hvc PRIVATE 
+    ${LUA_LIBRARIES}
+    pthread
+    m
+)
+
+# Install Lua if needed
+if(NOT LUA_FOUND)
+    message(FATAL_ERROR "Lua not found - required for scripting support")
 endif()

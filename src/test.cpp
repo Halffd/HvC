@@ -1,6 +1,17 @@
+#include "x11_includes.h"
+#include "system_includes.h"
 #include "window/Window.hpp"
 #include "core/IO.hpp"
+#include "core/ConfigManager.hpp"
+#include "core/HotkeyManager.hpp"
+#include "core/DisplayManager.hpp"
+#include "window/WindowManager.hpp"
+#include "logger.h"
 #include <iostream>
+
+namespace H {
+    extern Logger lo;  // Forward declaration of the logger object
+}
 
 void testSend(H::IO& io) {
     std::cout << "Testing Send function...\n";
@@ -22,43 +33,32 @@ void testRegisterHotkey(H::IO& io) {
         std::cout << "F1 pressed\n";
     });
     
-    io.Hotkey("ctrl+a", []() {
-        std::cout << "Ctrl+A pressed\n";
+    io.Hotkey("f2", []() {
+        std::cout << "F2 pressed\n";
     });
     
-    io.Hotkey("alt+shift+x", []() {
-        std::cout << "Alt+Shift+X pressed\n";
+    io.Hotkey("f3", []() {
+        std::cout << "F3 pressed\n";
     });
     
-    io.Hotkey("win+r", []() {
-        std::cout << "Win+R pressed\n";
-    });
-}
-
-void testHotkey(H::IO& io) {
-    std::cout << "Testing Hotkey function...\n";
-    
-    // Test basic key
-    io.Hotkey("f1", []() {
-        std::cout << "F1 pressed\n";
+    io.Hotkey("ctrl+shift+a", []() {
+        std::cout << "Ctrl+Shift+A pressed\n";
     });
     
-    // Test with modifiers
-    io.Hotkey("ctrl+a", []() {
-        std::cout << "Ctrl+A pressed\n";
+    io.Hotkey("ctrl+shift+b", []() {
+        std::cout << "Ctrl+Shift+B pressed\n";
     });
     
-    io.Hotkey("alt+shift+x", []() {
-        std::cout << "Alt+Shift+X pressed\n";
+    io.Hotkey("ctrl+shift+c", []() {
+        std::cout << "Ctrl+Shift+C pressed\n";
     });
     
-    io.Hotkey("win+r", []() {
-        std::cout << "Win+R pressed\n";
+    io.Hotkey("shift+1", []() {
+        std::cout << "Shift+1 pressed\n";
     });
     
-    // Test with special characters
-    io.Hotkey("ctrl+!", []() {
-        std::cout << "Ctrl+! pressed\n";
+    io.Hotkey("shift+2", []() {
+        std::cout << "Shift+2 pressed\n";
     });
     
     io.Hotkey("alt+@", []() {
@@ -74,96 +74,85 @@ void testHotkey(H::IO& io) {
 void testHotkeyListen(H::IO& io) {
     std::cout << "Testing HotkeyListen function...\n";
     io.HotkeyListen();
-    // Sleep to allow hotkeys to be detected
-    // std::this_thread::sleep_for(std::chrono::seconds(10));
 }
 
 void testHandleKeyAction(H::IO& io) {
     std::cout << "Testing HandleKeyAction function...\n";
-    // io.HandleKeyAction("press", "a");
-    // io.HandleKeyAction("release", "a");
+    io.HandleKeyAction("down", "a");
 }
 
 void testSetTimer(H::IO& io) {
     std::cout << "Testing SetTimer function...\n";
-    // io.SetTimer(1000, []() {
-    //     std::cout << "Timer fired\n";
-    // });
-    // std::this_thread::sleep_for(std::chrono::seconds(2));
+    io.SetTimer(1000, []() {
+        std::cout << "Timer fired\n";
+    });
 }
 
 void testMsgBox(H::IO& io) {
     std::cout << "Testing MsgBox function...\n";
-    // io.MsgBox("This is a test message");
+    io.MsgBox("Hello, world!");
 }
 
-void linux_test(H::WindowManager w){
-    std::cout << "Linux test\n";
+void linux_test(H::WindowManager& w){
+    std::cout << "Linux Test Suite\n";
     
-    // Test window operations
-    H::Window win("A");
-    std::cout << "Active window: " << win.id << "\n";
-    
-    // Test window properties
-    std::cout << "Window title: " << win.Title() << "\n";
-    
-    // Test window actions
-    // win.Min();
-    // std::this_thread::sleep_for(std::chrono::seconds(1));
-    // win.Max();
-    // std::this_thread::sleep_for(std::chrono::seconds(1));
-    // win.Activate();
+    auto wins = w.GetAllWindows();
+    for (auto win : wins) {
+        std::cout << "Window: " << win << std::endl;
+    }
 }
 
-void windowsTest(H::WindowManager w){
-    std::cout << "Windows test\n";
+void windowsTest(H::WindowManager& w){
+    std::cout << "Windows Test Suite\n";
     
-    // Test window operations
-    H::Window win("Notepad");
-    std::cout << "Notepad window: " << win.id << "\n";
-    
-    // Test window properties
-    std::cout << "Window title: " << win.Title() << "\n";
-    
-    // Test window actions
-    // win.Min();
-    // std::this_thread::sleep_for(std::chrono::seconds(1));
-    // win.Max();
-    // std::this_thread::sleep_for(std::chrono::seconds(1));
-    // win.Activate();
+    auto wins = w.GetAllWindows();
+    for (auto win : wins) {
+        std::cout << "Window: " << win << std::endl;
+    }
 }
 
 void setupAHKHotkeys(H::IO& io) {
-    io.Hotkey("!Up", []{ H::WindowManager::MoveWindow(1); });
-    io.Hotkey("!Down", []{ H::WindowManager::MoveWindow(2); });
-    io.Hotkey("!Left", []{ H::WindowManager::MoveWindow(3); });
-    io.Hotkey("!Right", []{ H::WindowManager::MoveWindow(4); });
+    io.Hotkey("!Up", [](){ H::WindowManager::MoveWindow(1); });
+    io.Hotkey("!Down", [](){ H::WindowManager::MoveWindow(2); });
+    io.Hotkey("!Left", [](){ H::WindowManager::MoveWindow(3); });
+    io.Hotkey("!Right", [](){ H::WindowManager::MoveWindow(4); });
     
-    io.Hotkey("^!Up", []{ H::WindowManager::ResizeWindow(1); });
-    io.Hotkey("^!Down", []{ H::WindowManager::ResizeWindow(2); });
-    io.Hotkey("^!Left", []{ H::WindowManager::ResizeWindow(3); });
-    io.Hotkey("^!Right", []{ H::WindowManager::ResizeWindow(4); });
+    // Window resizing hotkeys
+    io.Hotkey("!+Up", [](){ H::WindowManager::ResizeWindow(1); });
+    io.Hotkey("!+Down", [](){ H::WindowManager::ResizeWindow(2); });
+    io.Hotkey("!+Left", [](){ H::WindowManager::ResizeWindow(3); });
+    io.Hotkey("!+Right", [](){ H::WindowManager::ResizeWindow(4); });
     
-    io.Hotkey("#Left", []{ H::WindowManager::SnapWindow(1); });
-    io.Hotkey("#Right", []{ H::WindowManager::SnapWindow(2); });
-    
-    io.Hotkey("^#Left", []{ H::WindowManager::ManageVirtualDesktops(1); });
-    io.Hotkey("^#Right", []{ H::WindowManager::ManageVirtualDesktops(2); });
-    
-    io.Hotkey("^Space", []{ H::WindowManager::ToggleAlwaysOnTop(); });
+    io.Hotkey("^r", [](){ H::WindowManager::ToggleAlwaysOnTop(); });
 }
 
 void test(H::IO& io){
-    std::cout << "Running tests...\n";
+    std::this_thread::sleep_for(std::chrono::seconds(1));
     
-    // Test IO functions
-    testSend(io);
-    testControlSend(io);
+    // Register test hotkeys
+    std::cout << "Registering test hotkeys...\n";
     testRegisterHotkey(io);
-    testHotkey(io);
     
-    // Test window management
+    // Create a Window object
+    H::Window myWindow;
+    std::cout << "Created Window object\n";
+    
+    // Find Firefox window
+    wID firefoxWindow = myWindow.Find("firefox");
+    if (firefoxWindow) {
+        std::cout << "Found Firefox window: " << firefoxWindow << std::endl;
+        std::cout << "Window title: " << myWindow.Title(firefoxWindow) << std::endl;
+    }
+}
+
+int test_main(int argc, char* argv[]) {
+    H::IO io;
+    std::cout << "Test main function initialized\n";
+    
     H::WindowManager wm;
+    
+    setupAHKHotkeys(io);
+    test(io);
     
     #ifdef _WIN32
     windowsTest(wm);
@@ -173,10 +162,6 @@ void test(H::IO& io){
     
     // Test hotkey listening (this will block)
     testHotkeyListen(io);
-}
-
-int test_main(int argc, char* argv[]) {
-    H::IO io;
-    test(io);
+    
     return 0;
 }
