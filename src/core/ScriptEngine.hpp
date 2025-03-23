@@ -1,5 +1,5 @@
 #pragma once
-#include <sol2/sol.hpp>
+#include <sol/sol.hpp>
 #include "ConfigManager.hpp"
 #include <fstream>
 
