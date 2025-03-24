@@ -1,11 +1,31 @@
-cmake_minimum_required(VERSION 3.28.1)
-project(hvc CXX)
+cmake_minimum_required(VERSION 3.10)
+project(hvc VERSION 0.1.0 LANGUAGES CXX)
+
+# Set C++ standard
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Create a boolean option for assembly generation
 option(GENERATE_ASM "Generate assembly files" OFF)
 
 # Add option to enable/disable tests
 option(ENABLE_TESTS "Enable testing" OFF)
+
+# Detect platform
+if(WIN32)
+    add_definitions(-DWINDOWS)
+elseif(UNIX AND NOT APPLE)
+    add_definitions(-D__linux__)
+    # Find X11
+    find_package(X11 REQUIRED)
+    include_directories(${X11_INCLUDE_DIR})
+endif()
+
+# Include directories
+include_directories(
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/src
+)
 
 # Exclude GUI files for now
 file(GLOB_RECURSE source_files 
@@ -21,8 +41,10 @@ list(FILTER source_files EXCLUDE REGEX "src/gui/.*\\.cpp$")
 
 set(src ${source_files} ${source_c_files})
 
+# Create executable (only once)
 add_executable(hvc ${src})
 
+# Include directories
 include_directories("${CMAKE_SOURCE_DIR}/include")
 
 # Set output properties 
@@ -60,15 +82,6 @@ endif()
 if(UNIX AND NOT APPLE)
     message(STATUS "Configuring for Linux...")
 
-    # Find X11 package
-    find_package(X11 REQUIRED)
-    if(X11_FOUND)
-        include_directories(${X11_INCLUDE_DIR})
-        target_link_libraries(hvc PRIVATE ${X11_LIBRARIES} Xtst)
-    else()
-        message(FATAL_ERROR "X11 library not found!")
-    endif()
-
     # Add XKB library
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(XKB REQUIRED xkbcommon)
@@ -79,6 +92,9 @@ if(UNIX AND NOT APPLE)
 
     # Add XF86 keysym support
     target_compile_definitions(hvc PRIVATE __linux__)
+    
+    # Link X11 libraries (using PRIVATE keyword)
+    target_link_libraries(hvc PRIVATE ${X11_LIBRARIES} ${X11_Xtst_LIB} pthread)
 endif()
 
 if(ENABLE_TESTS)
@@ -89,7 +105,7 @@ endif()
 find_package(Lua REQUIRED)
 include_directories(${LUA_INCLUDE_DIR})
 
-# Add to executable target
+# Add to executable target (using PRIVATE keyword)
 target_link_libraries(hvc PRIVATE 
     ${LUA_LIBRARIES}
     pthread
@@ -100,3 +116,6 @@ target_link_libraries(hvc PRIVATE
 if(NOT LUA_FOUND)
     message(FATAL_ERROR "Lua not found - required for scripting support")
 endif()
+
+# Install target
+install(TARGETS hvc DESTINATION bin)

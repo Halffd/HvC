@@ -1,51 +1,40 @@
 #pragma once
-#include "IO.hpp"
+#include <string>
 #include <vector>
-#include <chrono>
+#include <functional>
 
 namespace H {
+
 class MacroSystem {
 public:
-    struct MacroEvent {
-        std::chrono::milliseconds timestamp;
-        std::variant<std::string, std::pair<int, int>> data;
-    };
-
-    MacroSystem(IO& io) : io(io), recording(false) {}
-
-    void StartRecording() {
-        recording = true;
-        macro.clear();
-        startTime = std::chrono::steady_clock::now();
-    }
-
-    void StopAndSave(const std::string& name) {
-        recording = false;
-        macros[name] = macro;
-    }
-
-    void Play(const std::string& name) {
-        if(macros.find(name) == macros.end()) return;
-        
-        const auto& events = macros[name];
-        auto start = std::chrono::steady_clock::now();
-        
-        for(const auto& event : events) {
-            std::this_thread::sleep_until(start + event.timestamp);
-            if(auto key = std::get_if<std::string>(&event.data)) {
-                io.Send(*key);
-            }
-            else if(auto pos = std::get_if<std::pair<int, int>>(&event.data)) {
-                io.MouseMove(pos->first, pos->second);
-            }
-        }
-    }
-
+    MacroSystem();
+    ~MacroSystem();
+    
+    void RecordMacro(const std::string& name);
+    void StopRecording();
+    void PlayMacro(const std::string& name);
+    
 private:
-    IO& io;
-    bool recording;
-    std::vector<MacroEvent> macro;
-    std::unordered_map<std::string, std::vector<MacroEvent>> macros;
-    std::chrono::steady_clock::time_point startTime;
+    struct MacroAction {
+        enum ActionType { 
+            KeyPressAction, 
+            KeyReleaseAction, 
+            MouseMoveAction, 
+            MouseClickAction 
+        };
+        ActionType type;
+        int data1, data2;
+        unsigned long timestamp;
+    };
+    
+    struct Macro {
+        std::string name;
+        std::vector<MacroAction> actions;
+    };
+    
+    std::vector<Macro> macros;
+    bool recording = false;
+    std::string currentMacro;
 };
-} 
+
+} // namespace H 

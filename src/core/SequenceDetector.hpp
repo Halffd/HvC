@@ -1,49 +1,27 @@
 #pragma once
+#include <string>
 #include <vector>
-#include <chrono>
 #include <functional>
 
 namespace H {
+
 class SequenceDetector {
 public:
-    using TimePoint = std::chrono::steady_clock::time_point;
+    SequenceDetector();
+    ~SequenceDetector();
     
-    SequenceDetector(std::vector<std::string> sequence, 
-                    std::function<void()> action,
-                    std::chrono::milliseconds timeout = 1000ms)
-        : targetSequence(sequence), action(action), timeout(timeout) {}
-
-    void ProcessEvent(const std::string& key) {
-        auto now = std::chrono::steady_clock::now();
-        
-        if (!currentSequence.empty() && 
-            (now - lastEventTime) > timeout) {
-            Reset();
-        }
-        
-        currentSequence.push_back(key);
-        lastEventTime = now;
-        
-        if (currentSequence.size() > targetSequence.size()) {
-            currentSequence.erase(currentSequence.begin());
-        }
-        
-        if (currentSequence == targetSequence) {
-            action();
-            Reset();
-        }
-    }
-
+    void AddSequence(const std::string& sequence, std::function<void()> action);
+    void ProcessKey(const std::string& key);
+    void Reset();
+    
 private:
-    std::vector<std::string> targetSequence;
-    std::vector<std::string> currentSequence;
-    std::function<void()> action;
-    std::chrono::milliseconds timeout;
-    TimePoint lastEventTime;
+    struct Sequence {
+        std::string pattern;
+        std::function<void()> action;
+    };
     
-    void Reset() {
-        currentSequence.clear();
-        lastEventTime = TimePoint{};
-    }
+    std::vector<Sequence> sequences;
+    std::string currentInput;
 };
-} 
+
+} // namespace H 

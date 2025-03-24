@@ -1,28 +1,47 @@
 #include "logger.h"
 #include "x11_includes.h"
 #include "IO.hpp"
+#include "core/DisplayManager.hpp"
+#include "../window/WindowManager.hpp"
+#include <algorithm>
+#include <iostream>
+#include <thread>
+
+namespace H {
 
 #if defined(WINDOWS)
 HHOOK IO::keyboardHook = NULL;
 #endif
 std::unordered_map<int, HotKey> IO::hotkeys; // Map to store hotkeys by ID
+bool IO::hotkeyEnabled = true;
+int IO::hotkeyCount = 0;
+
 IO::IO()
 {
-    H::DisplayManager::Initialize();
-    Display* display = H::DisplayManager::GetDisplay();
-    Window root = H::DisplayManager::GetRootWindow();
-
-#if defined(__linux__)
-    if (!display){
-        display = XOpenDisplay(nullptr);
-        root = XDefaultRootWindow(display);
-
-        if (!display)
-        {
-            std::cerr << "Failed to open X11 display" << std::endl;
-        }
+    std::cout << "IO constructor called" << std::endl;
+    DisplayManager::Initialize();
+    display = DisplayManager::GetDisplay();
+    if (!display) {
+        std::cerr << "Failed to get X11 display" << std::endl;
     }
-#endif
+    InitKeyMap();
+}
+
+IO::~IO() {
+    std::cout << "IO destructor called" << std::endl;
+    if (timerRunning && timerThread.joinable()) {
+        timerRunning = false;
+        timerThread.join();
+    }
+    
+    // Don't close the display here, it's managed by DisplayManager
+    display = nullptr;
+}
+
+void IO::InitKeyMap() {
+    // Basic implementation of key map
+    std::cout << "Initializing key map" << std::endl;
+    // Add key mappings here as needed
 }
 
 void IO::removeSpecialCharacters(str &keyName)
@@ -38,26 +57,203 @@ void IO::removeSpecialCharacters(str &keyName)
                                  }),
                   keyName.end());
 }
+
+// Static method to handle key events
 void IO::HandleKeyEvent(XEvent& event) {
     XKeyEvent* keyEvent = reinterpret_cast<XKeyEvent*>(&event);
     KeySym keysym = XLookupKeysym(keyEvent, 0);
 
     for (const auto& [id, hotkey] : hotkeys) {
-        if (hotkey.enabled && hotkey.key.virtualKey == keysym) {
-            if (hotkey.action) hotkey.action();
+        if (hotkey.enabled && hotkey.key == keysym) {
+            if (hotkey.callback) hotkey.callback();
         }
     }
 }
 
+// Static method to handle mouse events
 void IO::HandleMouseEvent(XEvent& event) {
     XButtonEvent* buttonEvent = reinterpret_cast<XButtonEvent*>(&event);
     unsigned int button = buttonEvent->button;
 
     for (const auto& [id, hotkey] : hotkeys) {
-        if (hotkey.enabled && IO::StringToButton(hotkey.key.name) == button) {
-            if (hotkey.action) hotkey.action();
+        if (hotkey.enabled && StringToButton(hotkey.alias) == button) {
+            if (hotkey.callback) hotkey.callback();
         }
     }
+}
+
+// Static method to handle key strings
+Key IO::handleKeyString(const std::string& keystr) {
+    // Use DisplayManager to get the display
+    Display* display = DisplayManager::GetDisplay();
+    if (!display) {
+        std::cerr << "No display available for key handling" << std::endl;
+        return 0;
+    }
+    
+    KeySym keysym = 0;
+    
+    if (keystr.length() == 1) {
+        // Single character key
+        keysym = XStringToKeysym(keystr.c_str());
+    } else {
+        // Named key
+        keysym = XStringToKeysym(keystr.c_str());
+        if (keysym == NoSymbol) {
+            // Try with "XK_" prefix
+            std::string xkName = "XK_" + keystr;
+            keysym = XStringToKeysym(xkName.c_str());
+        }
+    }
+    
+    if (keysym == NoSymbol) {
+        // Try as a scan code
+        int value = std::stoi(keystr);
+        KeyCode keycode = value;
+        keysym = XkbKeycodeToKeysym(display, keycode, 0, 0);
+    }
+    
+    return keysym;
+}
+
+// Method to send keys
+void IO::Send(const std::string& keys) {
+    std::cout << "Sending keys: " << keys << std::endl;
+    ProcessKeyCombination(keys);
+}
+
+// Method to process key combinations
+void IO::ProcessKeyCombination(const std::string& keys) {
+    std::cout << "Processing key combination: " << keys << std::endl;
+}
+
+// Method to suspend hotkeys
+bool IO::Suspend(int id) {
+    std::cout << "Suspending hotkey ID: " << id << std::endl;
+    auto it = hotkeys.find(id);
+    if (it != hotkeys.end()) {
+        it->second.enabled = false;
+        return true;
+    }
+    return false;
+}
+
+// Method to resume hotkeys
+bool IO::Resume(int id) {
+    std::cout << "Resuming hotkey ID: " << id << std::endl;
+    auto it = hotkeys.find(id);
+    if (it != hotkeys.end()) {
+        it->second.enabled = true;
+        return true;
+    }
+    return false;
+}
+
+// Add a hotkey with given key, modifiers, and callback function
+bool IO::Hotkey(const std::string& hotkeyStr, std::function<void()> action, int id) {
+    std::cout << "Setting up hotkey: " << hotkeyStr << std::endl;
+    if (id == 0) {
+        id = ++hotkeyCount;
+    }
+    
+    // Parse the hotkey string to get key and modifiers
+    std::string keyName;
+    int modifiers = 0;
+    
+    // Get key and modifiers from hotkey string
+    if (hotkeyStr.find("+") != std::string::npos) {
+        // Multiple keys with modifiers
+        modifiers = ParseModifiers(hotkeyStr);
+        size_t pos = hotkeyStr.find_last_of('+');
+        keyName = hotkeyStr.substr(pos+1);
+    } else if (hotkeyStr.find("^") == 0) {
+        // Control key
+        modifiers = ControlMask;
+        keyName = hotkeyStr.substr(1);
+    } else if (hotkeyStr.find("!") == 0) {
+        // Alt key
+        modifiers = Mod1Mask;
+        keyName = hotkeyStr.substr(1);
+    } else if (hotkeyStr.find("#") == 0) {
+        // Windows/Super key
+        modifiers = Mod4Mask;
+        keyName = hotkeyStr.substr(1);
+    } else if (hotkeyStr.find("+") == 0) {
+        // Shift key
+        modifiers = ShiftMask;
+        keyName = hotkeyStr.substr(1);
+    } else {
+        // Just a key, no modifiers
+        keyName = hotkeyStr;
+    }
+    
+    // Convert key name to virtual key code
+    Key key = StringToVirtualKey(keyName);
+    if (key == 0) {
+        std::cerr << "Invalid key name: " << keyName << std::endl;
+        return false;
+    }
+    
+    // Create hotkey structure
+    HotKey hotkey;
+    hotkey.alias = hotkeyStr;
+    hotkey.key = key;
+    hotkey.modifiers = modifiers;
+    hotkey.callback = action;
+    hotkey.enabled = true;
+    
+    // Register the hotkey
+    hotkeys[id] = hotkey;
+    
+    return true;
+}
+
+// Method to control send
+void IO::ControlSend(const std::string& control, const std::string& keys) {
+    std::cout << "Control send: " << control << " keys: " << keys << std::endl;
+    // Use WindowManager to find the window
+    wID hwnd = WindowManager::FindByTitle(control);
+    if (!hwnd) {
+        std::cerr << "Window not found: " << control << std::endl;
+        return;
+    }
+    
+    // Implementation to send keys to the window
+}
+
+// Method to get mouse position
+int IO::GetMouse() {
+    // No need to get root window here
+    // Window root = DisplayManager::GetRootWindow();
+    return 0;
+}
+
+void IO::SendX11Key(const std::string &keyName, bool press)
+{
+#if defined(__linux__)
+    if (!display)
+    {
+        std::cerr << "X11 display not initialized!" << std::endl;
+        return;
+    }
+
+    Key keysym = StringToVirtualKey(keyName);
+    if (keysym == NoSymbol)
+    {
+        std::cerr << "Invalid key: " << keyName << std::endl;
+        return;
+    }
+
+    KeyCode keycode = XKeysymToKeycode(display, keysym);
+    if (keycode == 0)
+    {
+        std::cerr << "Cannot find keycode for " << keyName << std::endl;
+        return;
+    }
+
+    XTestFakeKeyEvent(display, keycode, press, CurrentTime);
+    XFlush(display);
+#endif
 }
 
 Key IO::StringToButton(str buttonName) {
@@ -70,52 +266,7 @@ Key IO::StringToButton(str buttonName) {
     if (buttonName == "wheeldown" || buttonName == "scrolldown") return Button5;
     return 0;
 }
-Key IO::handleKeyString(const std::string& keystr) {
-    std::string type = keystr.substr(0, 2);
-    std::string numberStr = keystr.substr(2);
-    Key value;
 
-    // Check for hexadecimal (0x or 0X prefix)
-    if (numberStr.size() > 1 && numberStr[0] == '0' && 
-        (numberStr[1] == 'x' || numberStr[1] == 'X')) {
-        value = std::strtol(numberStr.c_str(), nullptr, 16);
-    } else if (numberStr.size() > 1 && numberStr[0] == '0') {
-        value = std::strtol(numberStr.c_str(), nullptr, 8);
-    } else {
-        value = std::strtol(numberStr.c_str(), nullptr, 10);
-    }
-    KeySym keysym = NoSymbol;
-
-    if (type == "vk") {
-        // For virtual keys, directly convert the value to a KeySym
-        // Assuming value is offset from 'A' as in your original code
-        keysym = XK_A + (value - 1);
-        std::cout << "Virtual Key: " << value << " -> KeySym: " << keysym << std::endl;
-    } 
-    else if (type == "ks") {
-        // For virtual keys, directly convert the value to a KeySym
-        keysym = value;
-        std::cout << "Virtual Key: " << value << " -> KeySym: " << keysym << std::endl;
-    } 
-    else if (type == "sc") {
-        // For scan codes, use XkbKeycodeToKeysym
-        // Note: scan code to keycode mapping might need system-specific adjustment
-        KeyCode keycode = value;
-        keysym = XkbKeycodeToKeysym(display, keycode, 0, 0);
-        std::cout << "Scan Code: " << value << " -> KeySym: " << keysym << std::endl;
-    } 
-    else if (type == "kc") {
-        // For keycodes, use XKeycodeToKeysym
-        KeyCode keycode = value;
-        keysym = XKeycodeToKeysym(display, keycode, 0);
-        std::cout << "Keycode: " << value << " -> KeySym: " << keysym << std::endl;
-    } 
-    else {
-        std::cout << "Unknown key type: " << keystr << std::endl;
-    }
-
-    return keysym;
-}
 // Helper function to convert string to virtual key code
 Key IO::StringToVirtualKey(str keyName)
 {
@@ -415,328 +566,11 @@ Key IO::StringToVirtualKey(str keyName)
     return IO::StringToButton(keyName); // Default for unsupported keys}
 #endif
 }
-void IO::Send(cstr keys)
-{
-    ProcessKeyCombination(keys);
-}
 
-void IO::SendX11Key(const std::string &keyName, bool press)
-{
-#if defined(__linux__)
-    if (!display)
-    {
-        std::cerr << "X11 display not initialized!" << std::endl;
-        return;
-    }
-
-    Key keysym = StringToVirtualKey(keyName);
-    if (keysym == NoSymbol)
-    {
-        std::cerr << "Invalid key: " << keyName << std::endl;
-        return;
-    }
-
-    KeyCode keycode = XKeysymToKeycode(display, keysym);
-    if (keycode == 0)
-    {
-        std::cerr << "Cannot find keycode for " << keyName << std::endl;
-        return;
-    }
-
-    XTestFakeKeyEvent(display, keycode, press, CurrentTime);
-    XFlush(display);
-#endif
-}
-void IO::ProcessKeyCombination(cstr keys)
-{
-    int modifiers = 0;
-
-#if defined(WINDOWS)
-    // Windows-specific implementation
-    for (size_t i = 0; i < keys.length(); ++i)
-    {
-        if (keys[i] == '{')
-        {
-            size_t end = keys.find('}', i);
-            if (end != std::string::npos)
-            {
-                std::string sequence = keys.substr(i + 1, end - i - 1);
-                if (sequence == "Alt down")
-                {
-                    modifiers |= MOD_ALT;
-                    keybd_event(VK_MENU, 0, 0, 0); // Press down Alt
-                }
-                else if (sequence == "Alt up")
-                {
-                    keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0); // Release Alt
-                }
-                else if (sequence == "Ctrl down")
-                {
-                    modifiers |= MOD_CONTROL;
-                    keybd_event(VK_CONTROL, 0, 0, 0); // Press down Ctrl
-                }
-                else if (sequence == "Ctrl up")
-                {
-                    keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0); // Release Ctrl
-                }
-                else if (sequence == "Shift down")
-                {
-                    modifiers |= MOD_SHIFT;
-                    keybd_event(VK_SHIFT, 0, 0, 0); // Press down Shift
-                }
-                else if (sequence == "Shift up")
-                {
-                    keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, 0); // Release Shift
-                }
-                else
-                {
-                    int virtualKey = StringToVirtualKey(sequence);
-                    if (virtualKey)
-                    {
-                        keybd_event(virtualKey, 0, 0, 0);               // Press down
-                        keybd_event(virtualKey, 0, KEYEVENTF_KEYUP, 0); // Release
-                    }
-                }
-                i = end; // Move past the closing brace
-                continue;
-            }
-        }
-
-        int virtualKey = StringToVirtualKey(std::string(1, keys[i]));
-        if (virtualKey)
-        {
-            keybd_event(virtualKey, 0, 0, 0);               // Press down
-            keybd_event(virtualKey, 0, KEYEVENTF_KEYUP, 0); // Release
-        }
-    }
-
-    // Release any held modifiers
-    if (modifiers & MOD_ALT)
-        keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0);
-    if (modifiers & MOD_CONTROL)
-        keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0);
-    if (modifiers & MOD_SHIFT)
-        keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, 0);
-#else
-    // Linux (X11)-specific implementation
-    for (size_t i = 0; i < keys.length(); ++i)
-    {
-        if (keys[i] == '{')
-        {
-            size_t end = keys.find('}', i);
-            if (end != std::string::npos)
-            {
-                std::string sequence = keys.substr(i + 1, end - i - 1);
-                if (sequence == "Alt down")
-                {
-                    modifiers |= Mod1Mask;
-                    SendX11Key("LAlt", true);
-                }
-                else if (sequence == "Alt up")
-                {
-                    modifiers &= ~Mod1Mask;
-                    SendX11Key("LAlt", false);
-                }
-                else if (sequence == "Ctrl down")
-                {
-                    modifiers |= ControlMask;
-                    SendX11Key("LCtrl", true);
-                }
-                else if (sequence == "Ctrl up")
-                {
-                    modifiers &= ~ControlMask;
-                    SendX11Key("LCtrl", false);
-                }
-                else if (sequence == "Shift down")
-                {
-                    modifiers |= ShiftMask;
-                    SendX11Key("LShift", true);
-                }
-                else if (sequence == "Shift up")
-                {
-                    modifiers &= ~ShiftMask;
-                    SendX11Key("LShift", false);
-                }
-                else
-                {
-                    SendX11Key(sequence, true);
-                    SendX11Key(sequence, false);
-                }
-                i = end; // Move past the closing brace
-                continue;
-            }
-        }
-
-        std::string keyName(1, keys[i]);
-        SendX11Key(keyName, true);
-        SendX11Key(keyName, false);
-    }
-
-    // Release any held modifiers
-    if (modifiers & Mod1Mask)
-        SendX11Key("LAlt", false);
-    if (modifiers & ControlMask)
-        SendX11Key("LCtrl", false);
-    if (modifiers & ShiftMask)
-        SendX11Key("LShift", false);
-#endif
-}
-
-bool IO::Suspend(int status)
-{
-    if (status == -1)
-    {
-        hotkeyEnabled = !hotkeyEnabled; // Toggle state
-    }
-    else
-    {
-        hotkeyEnabled = (status != 0); // Set state based on status
-    }
-
-    if (hotkeyEnabled)
-    {
-        // Hotkeys are enabled
-        std::cout << "Hotkeys enabled." << std::endl;
-        // Optionally re-register hotkeys if previously unregistered
-        for (auto &[id, hotkey] : hotkeys)
-        {
-            if (!hotkey.suspend)
-            {
-                #ifdef WINDOWS
-                if (hotkey.blockInput)
-                {
-                    AssignHotkey(hotkey, id);
-                }
-                else
-                {
-                    hotkey.enabled = true;
-                }
-                #else
-                    AssignHotkey(hotkey, id);
-                #endif
-            }
-            else
-            {
-                hotkey.enabled = true;
-            }
-        }
-    }
-    else
-    {
-        // Hotkeys are disabled
-        std::cout << "Hotkeys disabled." << std::endl;
-        // Unregister hotkeys
-        for (auto &[id, hotkey] : hotkeys)
-        {
-            if (!hotkey.suspend)
-            {
-                if (hotkey.blockInput)
-                {
-#ifdef WINDOWS
-                    UnregisterHotKey(0, id);
-#else
-                    XUngrabKey(display, hotkey.key.virtualKey, hotkey.modifiers, root);
-#endif
-                }
-                hotkey.enabled = false;
-            }
-        }
-    }
-    return hotkeyEnabled;
-}
-void IO::Hotkey(cstr hotkeyStr, std::function<void()> action, int id)
-{
-    str keyStr = hotkeyStr;
-    str keys = hotkeyStr;
-    int modifiers = ParseModifiers(keyStr);
-    bool block = true;
-    bool isSuspend = false;
-    if (hotkeyStr.find("*") != str::npos)
-    {
-        block = false;
-        keys.erase(keys.find("*"), 1);
-    }
-    if (keys.find("&") != str::npos)
-    {
-        isSuspend = true;
-        keys.erase(keys.find("&"), 1);
-    }
-    removeSpecialCharacters(keyStr);
-    Key virtualKey = StringToVirtualKey(keyStr);
-    HotKey hotkey = {
-        modifiers,
-        {
-            virtualKey,
-            keys
-        },
-        action,
-        block,
-        isSuspend,
-        true};
-    if (virtualKey)
-    {
-#ifdef WINDOWS
-        if (action)
-        {
-            // Assign hotkey if action is provided
-            AssignHotkey(hotkey, id);
-        }
-        else
-        {
-            // Action is nullptr, find and unregister by key name
-            for (auto it = hotkeys.begin(); it != hotkeys.end(); ++it)
-            {
-                if (it->second.key.name == hotkeyStr)
-                {
-                    if (it->second.blockInput)
-                    {
-                        UnregisterHotKey(0, it->first); // Unregister the hotkey
-                    }
-                    it->second.enabled = false;
-                    // hotkeys.erase(it); // Remove from the map
-                    std::cout << "Hotkey unregistered: " << hotkeyStr << std::endl;
-                    return; // Exit after unregistering
-                }
-            }
-            std::cerr << "Hotkey not found for unregistration: " << hotkeyStr << std::endl;
-        }
-#else
-        if (id == -1)
-            id = ++hotkeyCount;
-        AssignHotkey(hotkey, id);
-        hotkeys[id] = hotkey;
-#endif
-    }
-    else
-    {
-        std::cerr << "Invalid key name: " << keyStr << std::endl;
-    }
-}
-void IO::ControlSend(cstr control, cstr keys)
-{
-    wID hwnd = WindowManager::Find(control);
-    if (hwnd)
-    {
-        for (char key : keys)
-        {
-            int virtualKey = StringToVirtualKey(str(1, key));
-            if (virtualKey)
-            {
-#ifdef WINDOWS
-                SendMessage(hwnd, WM_KEYDOWN, virtualKey, 0);
-                SendMessage(hwnd, WM_KEYUP, virtualKey, 0);
-#endif
-            }
-        }
-    }
-    else
-    {
-        std::cerr << "Window not found!";
-    }
-}
-
+// Set a timer for a specified function 
 void IO::SetTimer(int milliseconds, const std::function<void()> &func)
 {
+    std::cout << "Setting timer for " << milliseconds << " ms" << std::endl;
     std::thread([=]()
                 {
             std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds));
@@ -744,71 +578,42 @@ void IO::SetTimer(int milliseconds, const std::function<void()> &func)
         .detach();
 }
 
-void IO::MsgBox(cstr message)
-{
-#if defined(WINDOWS)
-    MessageBoxA(NULL, message.c_str(), "Message", MB_OK);
-#else
-    std::cout << "MsgBox: " << message << std::endl;
-#endif
+// Display a message box
+void IO::MsgBox(const std::string& message) {
+    // Stub implementation for message box
+    std::cout << "Message Box: " << message << std::endl;
 }
-void IO::AssignHotkey(HotKey hotkey, int id)
-{
-    if (id == -1)
-    {
-        id = ++hotkeyCount; // Auto increment if id is not provided
-    }
-    if (hotkey.blockInput)
-    {
-#ifdef WINDOWS
-        if (RegisterHotKey(0, id, hotkey.modifiers, hotkey.key.virtualKey))
-        {
-            lo << "Hotkey registered: " << hotkey.key.name;
-        }
-        else
-        {
-            std::cerr << "Failed to register hotkey: " << GetLastError();
-            return;
-        }
-#else
-    if (!display) {
-        std::cerr << "X11 display not initialized for hotkey assignment!" << std::endl;
-        return;
-    }
 
-    if (id == -1) id = ++hotkeyCount;
+// Assign a hotkey to a specific ID
+void IO::AssignHotkey(HotKey hotkey, int id) {
+    // Generate a unique ID if not provided
+    if (id == 0) {
+        id = ++hotkeyCount;
+    }
+    
+    // Register the hotkey
     hotkeys[id] = hotkey;
-
-    KeyCode keycode = XKeysymToKeycode(display, hotkey.key.virtualKey);
+    
+    // Platform-specific registration
+#ifdef __linux__
+    Display* display = DisplayManager::GetDisplay();
+    if (!display) return;
+    
+    Window root = DisplayManager::GetRootWindow();
+    
+    KeyCode keycode = XKeysymToKeycode(display, hotkey.key);
     if (keycode == 0) {
-        std::cerr << "Invalid key for X11 hotkey assignment!" << std::endl;
+        std::cerr << "Invalid key code for hotkey: " << hotkey.alias << std::endl;
         return;
     }
-
-    // Grab the key with the appropriate owner_events based on blockInput
-    Bool owner_events = hotkey.blockInput ? False : True;
-
+    
+    Bool owner_events = True;
+    
     if (XGrabKey(display, keycode, hotkey.modifiers, root, owner_events,
-                    GrabModeAsync, GrabModeAsync) != Success) {
-        std::cerr << "Failed to grab key: " << hotkey.key.name << std::endl;
-    }
-    // If mouse buttons are included, grab them too
-    str kn = ToLower(hotkey.key.name);
-    if (kn == "button1" || kn == "button2" || kn == "button3" ||
-        kn == "scrollup" || kn == "scrolldown" || kn == "wheeldown" || kn == "wheelup") {
-        Key button = IO::StringToButton(kn);
-        if (button != 0) {
-            XGrabButton(display, button, hotkey.modifiers, DefaultRootWindow(display), True,
-                        ButtonPressMask | ButtonReleaseMask, GrabModeAsync, GrabModeAsync, None, None);
-        }
+                GrabModeAsync, GrabModeAsync) != Success) {
+        std::cerr << "Failed to grab key: " << hotkey.alias << std::endl;
     }
 #endif
-    }
-    hotkey.enabled = true;
-    if (hotkeys.find(id) == hotkeys.end())
-    {
-        hotkeys[id] = hotkey;
-    }
 }
 
 #ifdef WINDOWS
@@ -839,10 +644,10 @@ LRESULT CALLBACK IO::KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
 
                     if (modifiersMatch)
                     {
-                        if (hotkey.action)
+                        if (hotkey.callback)
                         {
-                            std::cout << "Action from non-blocking callback for " << hotkey.key.name << "\n";
-                            hotkey.action(); // Call the associated action
+                            std::cout << "Action from non-blocking callback for " << hotkey.alias << "\n";
+                            hotkey.callback(); // Call the associated action
                         }
                         break; // Exit after the first match
                     }
@@ -853,38 +658,7 @@ LRESULT CALLBACK IO::KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
     return CallNextHookEx(keyboardHook, nCode, wParam, lParam);
 }
 #endif
-int IO::GetMouse() {
-    if (!display) {
-        display = XOpenDisplay(nullptr);
-        if (!display) {
-            std::cerr << "Unable to open X display!" << std::endl;
-            return EXIT_FAILURE;
-        }
-    }
 
-    Window window = XCreateSimpleWindow(display, root, 10, 10, 200, 200, 1, 0, 0);
-    XSelectInput(display, window, ButtonPressMask | PointerMotionMask);
-    XMapWindow(display, window);
-
-    if (XGrabPointer(display, window, True, ButtonPressMask | PointerMotionMask,
-                     GrabModeAsync, GrabModeAsync, None, None, CurrentTime) != GrabSuccess) {
-        std::cerr << "Unable to grab pointer!" << std::endl;
-        return EXIT_FAILURE;
-    }
-
-    XEvent event;
-    while (true) {
-        XNextEvent(display, &event);
-        if (event.type == ButtonPress) {
-            std::cout << "Mouse button pressed: " << event.xbutton.button << std::endl;
-        } else if (event.type == MotionNotify) {
-            std::cout << "Mouse moved: (" << event.xmotion.x << ", " << event.xmotion.y << ")" << std::endl;
-        }
-    }
-
-    XUngrabPointer(display, CurrentTime);
-    return 0;
-}
 int IO::GetKeyboard() {
     if (!display) {
         display = XOpenDisplay(nullptr);
@@ -913,74 +687,6 @@ int IO::GetKeyboard() {
     XDestroyWindow(display, window);
     XCloseDisplay(display);
     return 0;
-}
-void IO::HotkeyListen() {
-#if defined(WINDOWS)
-    MSG msg;
-    keyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, NULL, 0);
-    if (!keyboardHook) {
-        std::cerr << "Failed to install hook: " << GetLastError() << std::endl;
-        return;
-    }
-    while (GetMessage(&msg, 0, 0, 0)) {
-        if (msg.message == WM_HOTKEY && hotkeys.count(msg.wParam)) {
-            HotKey hotkey = hotkeys[msg.wParam];
-            if (hotkey.action) {
-                std::cout << "Action triggered for: " << hotkey.key.name << "\n";
-                hotkey.action();
-            }
-        }
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
-    }
-    UnhookWindowsHookEx(keyboardHook);
-#elif defined(__linux__)
-    
-    if (!display) {
-        std::cerr << "X11 display not initialized for hotkey listening!" << std::endl;
-        return;
-    }
-
-    XEvent event;
-    Display* dis = display;
-    
-    // Event loop to listen for hotkeys
-    while (true) {
-        XNextEvent(dis, &event);
-
-        if (event.type == KeyPress) {
-            XKeyEvent* keyEvent = reinterpret_cast<XKeyEvent*>(&event);
-            KeySym keysym = XLookupKeysym(keyEvent, 0);
-
-            // Iterate through all hotkeys and trigger matching actions
-            for (const auto& [id, hotkey] : hotkeys) {
-                if (hotkey.enabled && hotkey.key.virtualKey == keysym) {
-                    if (hotkey.action) {
-                        hotkey.action(); // Trigger hotkey action
-                    }
-
-                    // Break the loop if input blocking is enabled
-                    if (hotkey.blockInput) {
-                        lo << "Blocked input for hotkey: " << hotkey.key.name;
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    // Ungrab all keys when exiting
-    for (const auto& [id, hotkey] : hotkeys) {
-        if (!hotkey.enabled) continue;
-
-        KeyCode keycode = XKeysymToKeycode(dis, hotkey.key.virtualKey);
-        if (keycode != 0) {
-            XUngrabKey(dis, keycode, hotkey.modifiers, root);
-        }
-    }
-
-    XCloseDisplay(dis);
-#endif
 }
 
 int IO::ParseModifiers(str str)
@@ -1027,104 +733,9 @@ int IO::ParseModifiers(str str)
 #endif
     return modifiers;
 }
-void IO::HandleKeyAction(cstr action, cstr keyName)
-{
-#if defined(WINDOWS)
-    int virtualKey = StringToVirtualKey(keyName);
-    if (virtualKey)
-    {
-        if (action == "down")
-        {
-            keybd_event(virtualKey, 0, KEYEVENTF_EXTENDEDKEY, 0);
-        }
-        else if (action == "up")
-        {
-            keybd_event(virtualKey, 0, KEYEVENTF_KEYUP, 0);
-        }
-    }
-#elif defined(WAYLAND)
-    // Implementation depends on Wayland compositor capabilities.
-    // Typically requires using libinput or the compositor's client API.
-    std::cerr << "Wayland key simulation not yet implemented." << std::endl;
-#else
-    bool press = action == "down";
-    Display *display = XOpenDisplay(nullptr);
-    if (!display)
-    {
-        std::cerr << "Cannot open X11 display" << std::endl;
-        return;
-    }
-
-    KeySym keysym = XStringToKeysym(keyName.c_str());
-    if (keysym == NoSymbol)
-    {
-        std::cerr << "Invalid key: " << keyName << std::endl;
-        return;
-    }
-
-    KeyCode keycode = XKeysymToKeycode(display, keysym);
-    if (keycode == 0)
-    {
-        std::cerr << "Cannot find keycode for " << keyName << std::endl;
-        return;
-    }
-
-    XTestFakeKeyEvent(display, keycode, press, CurrentTime);
-    XFlush(display);
-#endif
-}
-int IO::GetState(cstr keyName, cstr mode) {
-#if defined(WINDOWS)
-    int virtualKey = StringToVirtualKey(keyName);
-    if (mode.empty() || mode == "P") {
-        return (GetAsyncKeyState(virtualKey) & 0x8000) ? 1 : 0;
-    } else if (mode == "T") {
-        return (GetKeyState(virtualKey) & 0x1) ? 1 : 0;
-    }
-#elif defined(__linux__)
-    if (!display) {
-        display = XOpenDisplay(nullptr);
-        if (!display) {
-            std::cerr << "Unable to open X11 display!" << std::endl;
-            return 0;
-        }
-    }
-
-    char keys[32];
-    XQueryKeymap(display, keys);
-
-    KeySym keysym = XStringToKeysym(keyName.c_str());
-    if (keysym == NoSymbol) {
-        std::cerr << "Invalid key: " << keyName << std::endl;
-        return 0;
-    }
-
-    KeyCode keycode = XKeysymToKeycode(display, keysym);
-    if (keycode == 0) {
-        std::cerr << "Invalid keycode for key: " << keyName << std::endl;
-        return 0;
-    }
-
-    if (mode.empty() || mode == "P") {
-        return (keys[keycode / 8] & (1 << (keycode % 8))) ? 1 : 0;
-    } else if (mode == "T") {
-        if (keyName == "CapsLock" || keyName == "NumLock") {
-            XKeyboardState state;
-            XGetKeyboardControl(display, &state);
-
-            if (keyName == "CapsLock") {
-                return (state.led_mask & 0x1) ? 1 : 0;
-            } else if (keyName == "NumLock") {
-                return (state.led_mask & 0x2) ? 1 : 0;
-            }
-        }
-        return 0; // No toggle state for other keys
-    }
-#endif
-    return 0;
-}
 
 void IO::PressKey(const std::string& keyName, bool press) {
+    std::cout << "Pressing key: " << keyName << " (press: " << press << ")" << std::endl;
 #ifdef __linux__
     auto* display = H::DisplayManager::GetDisplay();
     if(!display) {
@@ -1142,3 +753,19 @@ void IO::PressKey(const std::string& keyName, bool press) {
     XFlush(display);
 #endif
 }
+
+bool IO::AddHotkey(const std::string& alias, Key key, int modifiers, std::function<void()> callback) {
+    // Stub implementation for AddHotkey
+    std::cout << "Adding hotkey: " << alias << std::endl;
+    HotKey hotkey;
+    hotkey.alias = alias;
+    hotkey.key = key;
+    hotkey.modifiers = modifiers;
+    hotkey.callback = callback;
+    
+    hotkeyCount++;
+    hotkeys[hotkeyCount] = hotkey;
+    return true;
+}
+
+} // namespace H

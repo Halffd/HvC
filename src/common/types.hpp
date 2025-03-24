@@ -1,32 +1,42 @@
 #pragma once
 #include <string>
-#include <unordered_map>
 #include <vector>
+#include <map>
+#include <unordered_map>
 #include <algorithm>
 
 namespace H {
 
-// Type aliases
+// Common type aliases
 using str = std::string;
-using cstr = const std::string&;
+using cstr = std::string;
+
+#ifdef _WIN32
+using wID = unsigned long long;
+using pID = unsigned long;
+#else
 using wID = unsigned long;
 using pID = unsigned long;
+#endif
 
-// Group type definition
-using group = std::unordered_map<std::string, std::vector<std::string>>;
+// Define group type
+using group = std::map<std::string, std::vector<std::string>>;
 
 // Process method enum
-enum class ProcessMethod {
-    Invalid = -1,
-    WaitForTerminate = 0,
-    ForkProcess = 1,
-    ContinueExecution = 2,
-    WaitUntilStarts = 3,
-    CreateNewWindow = 4,
-    AsyncProcessCreate = 5,
-    SystemCall = 6,
-    SameWindow = 7,
-    Shell = 8
+enum class ProcessMethodType {
+    WaitForTerminate,
+    ForkProcess,
+    CreateProcess,
+    ShellExecute,
+    System
+};
+
+// Rectangle structure
+struct Rect {
+    int x, y, width, height;
+    
+    Rect() : x(0), y(0), width(0), height(0) {}
+    Rect(int x, int y, int w, int h) : x(x), y(y), width(w), height(h) {}
 };
 
 // Helper function to convert string to lowercase

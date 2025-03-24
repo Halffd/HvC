@@ -1,6 +1,5 @@
 #pragma once
 #include "types.hpp"
-#include "Rect.hpp"
 #include "WindowManager.hpp"
 #include <string>
 #include <chrono>
@@ -75,6 +74,9 @@ private:
     wID FindByClass(cstr className);
     wID GetwIDByPID(pID pid);
     wID GetwIDByProcessName(cstr processName);
+    
+    // X11 helper methods
+    void SetAlwaysOnTopX11(wID win, bool top);
 };
 
 } // namespace H

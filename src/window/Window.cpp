@@ -1,4 +1,5 @@
 #include "Window.hpp"
+#include "core/DisplayManager.hpp"
 #include <iostream>
 #include <sstream>
 
@@ -6,11 +7,13 @@
 #include <X11/Xlib.h>
 #include <X11/Xatom.h>
 #include <X11/Xutil.h>
+// Define the display variable
+Display* display = nullptr;
 #endif
 
 // External X11 display variable from WindowManager.cpp
 #ifdef __linux__
-extern Display* display;
+// extern Display* display; // Removing this since we define it above
 #endif
 
 namespace H {
@@ -95,14 +98,13 @@ H::Rect H::Window::GetPositionX11(wID win) {
 }
 
 // Wayland implementation of GetPosition
-H::Rect H::Window::GetPositionWayland(wID win) {
-    // Placeholder for Wayland logic. Requires implementation using Wayland libraries.
-    std::cerr << "Wayland support is a work in progress." << std::endl;
-    return H::Rect(0, 0, 0, 0);
+H::Rect H::Window::GetPositionWayland(wID /* win */) {
+    // Wayland implementation not yet available
+    return {0, 0, 0, 0};
 }
 
 // Find window using method 2
-wID H::Window::Find2(cstr identifier, cstr type) {
+H::wID H::Window::Find2(cstr identifier, cstr type) {
     wID win = 0;
 
     if (type == "title") {
@@ -120,6 +122,95 @@ wID H::Window::Find2(cstr identifier, cstr type) {
         std::cerr << "Window not found!" << std::endl;
     }
     return win;
+}
+
+// Find a window by its identifier string
+H::wID H::Window::Find(cstr identifier) {
+    wID win = 0;
+    
+    // Check if it's a title
+    if (identifier.find("title=") == 0) {
+        std::string title = identifier.substr(6);
+        win = FindByTitle(title);
+    }
+    // Check if it's a class
+    else if (identifier.find("class=") == 0) {
+        std::string className = identifier.substr(6);
+        win = H::WindowManager::FindByClass(className);
+    }
+    // Check if it's a PID
+    else if (identifier.find("pid=") == 0) {
+        try {
+            pID pid = std::stoi(identifier.substr(4));
+            win = GetwIDByPID(pid);
+        } catch (const std::exception&) {
+            std::cerr << "Invalid PID format" << std::endl;
+        }
+    }
+    // Assume it's a title if no prefix is given
+    else {
+        win = FindByTitle(identifier);
+    }
+    
+    return win;
+}
+
+// Find a window by its title
+H::wID H::Window::FindByTitle(cstr title) {
+    #ifdef __linux__
+    // X11 implementation
+    ::Window rootWindow = DefaultRootWindow(display);
+    ::Window parent;
+    ::Window* children;
+    unsigned int numChildren;
+    
+    if (XQueryTree(display, rootWindow, &rootWindow, &parent, &children, &numChildren)) {
+        if (children) {
+            for (unsigned int i = 0; i < numChildren; i++) {
+                // Get window name
+                XTextProperty windowName;
+                if (XGetWMName(display, children[i], &windowName) && windowName.value) {
+                    std::string windowTitle = reinterpret_cast<char*>(windowName.value);
+                    XFree(windowName.value);
+                    
+                    if (windowTitle.find(title) != std::string::npos) {
+                        ::Window result = children[i];
+                        XFree(children);
+                        return static_cast<wID>(result);
+                    }
+                }
+                
+                // Try NET_WM_NAME for modern window managers
+                Atom nameAtom = XInternAtom(display, "_NET_WM_NAME", False);
+                Atom utf8Atom = XInternAtom(display, "UTF8_STRING", False);
+                
+                if (nameAtom != None && utf8Atom != None) {
+                    Atom actualType;
+                    int actualFormat;
+                    unsigned long nitems, bytesAfter;
+                    unsigned char* prop = nullptr;
+                    
+                    if (XGetWindowProperty(display, children[i], nameAtom, 0, 1024, False, utf8Atom,
+                                          &actualType, &actualFormat, &nitems, &bytesAfter, &prop) == Success) {
+                        if (prop) {
+                            std::string windowTitle(reinterpret_cast<char*>(prop));
+                            if (windowTitle.find(title) != std::string::npos) {
+                                ::Window result = children[i];
+                                XFree(prop);
+                                XFree(children);
+                                return static_cast<wID>(result);
+                            }
+                            XFree(prop);
+                        }
+                    }
+                }
+            }
+            XFree(children);
+        }
+    }
+    #endif
+    
+    return 0;
 }
 
 // Template specializations for FindT
@@ -442,7 +533,7 @@ void H::Window::AlwaysOnTop(wID win, bool top) {
 }
 
 void H::Window::SetAlwaysOnTopX11(wID win, bool top) {
-    auto* display = H::DisplayManager::GetDisplay();
+    auto* display = DisplayManager::GetDisplay();
     if(!display || win == 0) return;
 
     Atom wmState = XInternAtom(display, "_NET_WM_STATE", True);
@@ -457,8 +548,52 @@ void H::Window::SetAlwaysOnTopX11(wID win, bool top) {
         event.xclient.data.l[0] = top ? 1 : 0;
         event.xclient.data.l[1] = wmAbove;
         
-        XSendEvent(display, H::DisplayManager::GetRootWindow(), False,
+        XSendEvent(display, DefaultRootWindow(display), False,
                   SubstructureRedirectMask | SubstructureNotifyMask, &event);
         XFlush(display);
     }
+}
+
+// Find a window by its process ID
+H::wID H::Window::GetwIDByPID(pID pid) {
+    #ifdef __linux__
+    ::Window rootWindow = DefaultRootWindow(display);
+    ::Window parent;
+    ::Window* children;
+    unsigned int numChildren;
+    
+    if (XQueryTree(display, rootWindow, &rootWindow, &parent, &children, &numChildren)) {
+        if (children) {
+            Atom pidAtom = XInternAtom(display, "_NET_WM_PID", False);
+            
+            for (unsigned int i = 0; i < numChildren; i++) {
+                Atom actualType;
+                int actualFormat;
+                unsigned long nitems, bytesAfter;
+                unsigned char* prop = nullptr;
+                
+                if (XGetWindowProperty(display, children[i], pidAtom, 0, 1, False, XA_CARDINAL,
+                                      &actualType, &actualFormat, &nitems, &bytesAfter, &prop) == Success) {
+                    if (prop && nitems == 1) {
+                        pID windowPid = *reinterpret_cast<pID*>(prop);
+                        XFree(prop);
+                        
+                        if (windowPid == pid) {
+                            ::Window result = children[i];
+                            XFree(children);
+                            return static_cast<wID>(result);
+                        }
+                    }
+                    
+                    if (prop) {
+                        XFree(prop);
+                    }
+                }
+            }
+            XFree(children);
+        }
+    }
+    #endif
+    
+    return 0;
 }

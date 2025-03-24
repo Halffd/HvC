@@ -7,10 +7,37 @@
 #include <json/json.h>
 
 namespace H {
+
 class MPVController {
 public:
-    explicit MPVController(const std::string& socketPath = "/tmp/mpvsocket")
-        : socketPath(socketPath) {}
+    MPVController() = default;
+    ~MPVController() = default;
+    
+    bool Initialize();
+    void Shutdown();
+    
+    // Basic controls
+    void Play();
+    void Pause();
+    void TogglePause();
+    void Stop();
+    void Next();
+    void Previous();
+    
+    // Volume control
+    void SetVolume(int volume);
+    int GetVolume() const;
+    void ToggleMute();
+    
+    // Playback control
+    void Seek(int seconds);
+    void SetPosition(double position);
+    double GetPosition() const;
+    double GetDuration() const;
+    
+    // File operations
+    bool LoadFile(const std::string& path);
+    std::string GetCurrentFile() const;
 
     void SendCommand(const std::vector<std::string>& cmd) {
         Json::Value root;
@@ -20,10 +47,6 @@ public:
         }
         
         SendRaw(root.toStyledString());
-    }
-
-    void Seek(int seconds) {
-        SendCommand({"seek", std::to_string(seconds)});
     }
 
     void ToggleSubtitleVisibility() {
@@ -75,7 +98,12 @@ public:
     }
 
 private:
-    std::string socketPath;
+    bool initialized = false;
+    int volume = 100;
+    bool muted = false;
+    double position = 0.0;
+    double duration = 0.0;
+    std::string currentFile;
 
     void SendRaw(const std::string& data) {
         int sock = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -83,7 +111,7 @@ private:
 
         struct sockaddr_un addr = {};
         addr.sun_family = AF_UNIX;
-        strncpy(addr.sun_path, socketPath.c_str(), sizeof(addr.sun_path)-1);
+        strncpy(addr.sun_path, "/tmp/mpvsocket", sizeof(addr.sun_path)-1);
 
         if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
             close(sock);
@@ -99,20 +127,40 @@ private:
     }
 
     Json::Value SendCommandWithResponse(const std::vector<std::string>& cmd) {
-        int sock = CreateSocket();
-        SendRaw(Json::Value(cmd).toStyledString(), sock);
+        int sock = socket(AF_UNIX, SOCK_STREAM, 0);
+        if (sock < 0) throw std::runtime_error("Socket creation failed");
+
+        struct sockaddr_un addr = {};
+        addr.sun_family = AF_UNIX;
+        strncpy(addr.sun_path, "/tmp/mpvsocket", sizeof(addr.sun_path)-1);
+
+        if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+            close(sock);
+            throw std::runtime_error("Connection to MPV failed");
+        }
+
+        Json::Value root;
+        root["command"] = Json::arrayValue;
+        for (const auto& arg : cmd) {
+            root["command"].append(arg);
+        }
         
+        if (write(sock, root.toStyledString().c_str(), root.toStyledString().size()) < 0) {
+            close(sock);
+            throw std::runtime_error("Write to MPV socket failed");
+        }
+
         char buffer[4096];
         ssize_t count = read(sock, buffer, sizeof(buffer)-1);
         close(sock);
         
         if (count > 0) {
             buffer[count] = '\0';
-            Json::Value root;
+            Json::Value response;
             JSONCPP_STRING err;
             Json::CharReaderBuilder builder;
-            if (Json::parseFromStream(builder, buffer, &root, &err)) {
-                return root;
+            if (Json::parseFromStream(builder, buffer, &response, &err)) {
+                return response;
             }
         }
         return Json::Value();

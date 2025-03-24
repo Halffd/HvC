@@ -1,0 +1,42 @@
+file(REMOVE_RECURSE
+  "CMakeFiles/hvc.dir/link.d"
+  "CMakeFiles/hvc.dir/src/core/DisplayManager.cpp.o"
+  "CMakeFiles/hvc.dir/src/core/DisplayManager.cpp.o.d"
+  "CMakeFiles/hvc.dir/src/core/HotkeyManager.cpp.o"
+  "CMakeFiles/hvc.dir/src/core/HotkeyManager.cpp.o.d"
+  "CMakeFiles/hvc.dir/src/core/IO.cpp.o"
+  "CMakeFiles/hvc.dir/src/core/IO.cpp.o.d"
+  "CMakeFiles/hvc.dir/src/core/ScriptEngine.cpp.o"
+  "CMakeFiles/hvc.dir/src/core/ScriptEngine.cpp.o.d"
+  "CMakeFiles/hvc.dir/src/core/SocketServer.cpp.o"
+  "CMakeFiles/hvc.dir/src/core/SocketServer.cpp.o.d"
+  "CMakeFiles/hvc.dir/src/main.cpp.o"
+  "CMakeFiles/hvc.dir/src/main.cpp.o.d"
+  "CMakeFiles/hvc.dir/src/test.cpp.o"
+  "CMakeFiles/hvc.dir/src/test.cpp.o.d"
+  "CMakeFiles/hvc.dir/src/utils/Logger.cpp.o"
+  "CMakeFiles/hvc.dir/src/utils/Logger.cpp.o.d"
+  "CMakeFiles/hvc.dir/src/utils/Other.cpp.o"
+  "CMakeFiles/hvc.dir/src/utils/Other.cpp.o.d"
+  "CMakeFiles/hvc.dir/src/utils/Printer.cpp.o"
+  "CMakeFiles/hvc.dir/src/utils/Printer.cpp.o.d"
+  "CMakeFiles/hvc.dir/src/utils/Util.cpp.o"
+  "CMakeFiles/hvc.dir/src/utils/Util.cpp.o.d"
+  "CMakeFiles/hvc.dir/src/window/CompizManager.cpp.o"
+  "CMakeFiles/hvc.dir/src/window/CompizManager.cpp.o.d"
+  "CMakeFiles/hvc.dir/src/window/Window.cpp.o"
+  "CMakeFiles/hvc.dir/src/window/Window.cpp.o.d"
+  "CMakeFiles/hvc.dir/src/window/WindowManager.cpp.o"
+  "CMakeFiles/hvc.dir/src/window/WindowManager.cpp.o.d"
+  "CMakeFiles/hvc.dir/src/window/WindowManagerDetector.cpp.o"
+  "CMakeFiles/hvc.dir/src/window/WindowManagerDetector.cpp.o.d"
+  "CMakeFiles/hvc.dir/src/window/WindowMonitor.cpp.o"
+  "CMakeFiles/hvc.dir/src/window/WindowMonitor.cpp.o.d"
+  "HvC"
+  "HvC.pdb"
+)
+
+# Per-language clean rules from dependency scanning.
+foreach(lang CXX)
+  include(CMakeFiles/hvc.dir/cmake_clean_${lang}.cmake OPTIONAL)
+endforeach()

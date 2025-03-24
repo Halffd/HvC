@@ -32,7 +32,7 @@ public:
     static wID NewWindow(cstr name, std::vector<int>* dimensions = nullptr, bool hide = false);
 
     // Process management
-    static ProcessMethod toMethod(cstr method);
+    static ProcessMethodType toMethod(cstr method);
     static void SetPriority(int priority, pID procID = 0);
     static int64_t Terminal(cstr command, bool canPause, str windowState, bool continueExecution, cstr terminal = "");
     
@@ -77,6 +77,7 @@ public:
     static void WinTransparent();
     static void WinMoveResize();
     static void WinSetAlwaysOnTop(bool onTop);
+    static void SnapWindowWithPadding(int position, int padding);
 
 private:
     static bool InitializeX11();
@@ -96,11 +97,11 @@ int64_t WindowManager::Run(str path, T method, str windowState, str command, int
     (void)windowState; // Suppress unused parameter warning
     (void)priority;    // Suppress unused parameter warning
 
-    ProcessMethod processMethod;
-    if constexpr (std::is_same_v<T, ProcessMethod>) {
+    ProcessMethodType processMethod;
+    if constexpr (std::is_same_v<T, ProcessMethodType>) {
         processMethod = method;
     } else if constexpr (std::is_same_v<T, int>) {
-        processMethod = static_cast<ProcessMethod>(method);
+        processMethod = static_cast<ProcessMethodType>(method);
     } else if constexpr (std::is_same_v<T, str>) {
         processMethod = toMethod(method);
     } else {
@@ -109,7 +110,7 @@ int64_t WindowManager::Run(str path, T method, str windowState, str command, int
 
     // Implementation of process creation logic
     switch (processMethod) {
-        case ProcessMethod::WaitForTerminate: {
+        case ProcessMethodType::WaitForTerminate: {
             pid_t childPid = ::fork();
             if (childPid == 0) {
                 // Child process
@@ -124,7 +125,7 @@ int64_t WindowManager::Run(str path, T method, str windowState, str command, int
             return -1;
         }
         
-        case ProcessMethod::ForkProcess: {
+        case ProcessMethodType::ForkProcess: {
             pid_t childPid = ::fork();
             if (childPid == 0) {
                 // Child process

@@ -1,4 +1,5 @@
 #pragma once
+#include <string>
 #include <thread>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -6,28 +7,27 @@
 #include <atomic>
 
 namespace H {
+
 class SocketServer {
 public:
-    void Start() {
-        running = true;
-        serverThread = std::thread([this]{ RunServer(); });
-    }
-
-    void Stop() {
-        running = false;
-        if (serverThread.joinable()) serverThread.join();
-    }
-
-    virtual ~SocketServer() {
-        Stop();
-    }
-
+    SocketServer();
+    SocketServer(int port) : port(port) {}
+    virtual ~SocketServer();
+    
+    bool Start(int port = 0);
+    void Stop();
+    bool IsRunning() const;
+    
 protected:
     virtual void HandleCommand(const std::string& cmd) = 0;
-
+    
 private:
+    void ServerThread();
+    
     std::thread serverThread;
     std::atomic<bool> running{false};
+    int socketFd = -1;
+    int port = 0;
 
     void RunServer() {
         int sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -60,4 +60,5 @@ private:
         close(sockfd);
     }
 };
-} 
+
+} // namespace H 

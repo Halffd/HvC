@@ -8,7 +8,7 @@
 #include "core/ScriptEngine.hpp"
 #include <csignal>
 #include "core/HotkeyManager.hpp"
-#include "media/MPVController.hpp"
+// #include "media/MPVController.hpp"  // Comment out this include since we already have core/MPVController.hpp
 #include "core/SocketServer.hpp"
 #include "core/AutoClicker.hpp"
 #include "core/EmergencySystem.hpp"
@@ -29,21 +29,24 @@ void SignalHandler(int signal) {
     gSignalStatus = signal;
 }
 
-class AppServer : public H::SocketServer {
-protected:
+using namespace H;
+
+// Simple socket server for external control
+class AppServer : public SocketServer {
+public:
+    AppServer(int port) : SocketServer(port) {}
+    
     void HandleCommand(const std::string& cmd) override {
         lo.debug("Socket command received: " + cmd);
         if (cmd == "toggle_mute") ToggleMute();
-        else if (cmd.starts_with("volume:")) {
+        else if (cmd.find("volume:") == 0) {
             int vol = std::stoi(cmd.substr(7));
             AdjustVolume(vol);
         }
-        // Add more command handlers
     }
-
-private:
+    
     void ToggleMute() { /* ... */ }
-    void AdjustVolume(int vol) { /* ... */ }
+    void AdjustVolume(int) { /* ... */ }
 };
 
 int main(int argc, char* argv[]) {
@@ -54,112 +57,80 @@ int main(int argc, char* argv[]) {
     std::signal(SIGTERM, SignalHandler);
     
     try {
-        lo.info("HvC application starting up");
+        lo.info("Starting HvC...");
         
-        // Ensure config directories exist
-        H::ConfigPaths::EnsureConfigDir();
+        // Load configuration
+        auto& config = Configs::Get();
+        config.Load("config.json");
         
-        // Ensure log directories exist
-        LoggerPaths::EnsureLogDir();
+        // Create IO manager
+        auto io = std::make_shared<IO>();
         
-        // Check for existing config.cfg in root and migrate if needed
-        if (std::filesystem::exists("config.cfg") && !std::filesystem::exists("config/main.cfg")) {
-            try {
-                std::filesystem::copy_file("config.cfg", "config/main.cfg");
-                lo.info("Migrated config.cfg to config/main.cfg");
-            } catch (const std::filesystem::filesystem_error& e) {
-                lo.error("Failed to migrate config.cfg: " + std::string(e.what()));
-            }
-        }
-        
-        // Load configurations
-        auto& config = H::Configs::Get();
-        config.Load();
-        lo.info("Configuration loaded successfully");
-        
-        // Load and bind hotkeys
-        auto& mappings = H::Mappings::Get();
-        mappings.Load();
-        lo.info("Key mappings loaded successfully");
-        
-        // Create main objects
-        auto io = std::make_shared<H::IO>();
-        mappings.BindHotkeys(*io);
-        
-        // Create a WindowManager instance
-        auto windowManager = std::make_unique<H::WindowManager>();
-        lo.info("Detected window manager: " + windowManager->GetCurrentWMName());
-        
-        if (!windowManager->IsWMSupported()) {
-            lo.warning("Current window manager may not be fully supported");
-        }
-        
-        // Load default configuration values
-        int moveSpeed = config.Get<int>("Window.MoveSpeed", 10);
-        std::string theme = config.Get<std::string>("UI.Theme", "dark");
+        // Create window manager
+        auto windowManager = std::make_shared<WindowManager>();
         
         // Create MPV controller
-        auto mpv = std::make_unique<H::MPVController>();
+        auto mpv = std::make_shared<MPVController>();
         
         // Create script engine
-        auto scriptEngine = std::make_shared<H::ScriptEngine>(*io, *windowManager);
+        auto scriptEngine = std::make_shared<ScriptEngine>(*io, *windowManager);
         
-        // Initialize hotkey manager with script engine
-        auto hotkeyManager = std::make_unique<H::HotkeyManager>(*io, *windowManager, *mpv, *scriptEngine);
+        // Create hotkey manager
+        auto hotkeyManager = std::make_shared<HotkeyManager>(*io, *windowManager, *mpv, *scriptEngine);
         
-        // Start listening for hotkeys
-        io->HotkeyListen();
+        // Register default hotkeys
+        hotkeyManager->RegisterDefaultHotkeys();
+        hotkeyManager->RegisterMediaHotkeys();
+        hotkeyManager->RegisterWindowHotkeys();
+        hotkeyManager->RegisterSystemHotkeys();
+        
+        // Load user hotkey configurations
+        hotkeyManager->LoadHotkeyConfigurations();
+        
+        // Initialize window manager
+        int moveSpeed = config.Get<int>("Window.MoveSpeed", 10);
+        // windowManager->SetMoveSpeed(moveSpeed);
+        
+        // Start socket server for external control
+        AppServer server(config.Get<int>("Network.Port", 8765));
+        server.Start();
         
         // Watch for theme changes
         H::Configs::Get().Watch<std::string>("UI.Theme", [](auto oldVal, auto newVal) {
             lo.info("Theme changed from " + oldVal + " to " + newVal);
-            H::Notifier::Show("Theme changed to " + newVal);
         });
         
-        // Setup socket server for IPC
-        AppServer server;
-        server.Start();
-        lo.info("Socket server started");
+        // Main loop
+        bool running = true;
+        auto lastCheck = std::chrono::steady_clock::now();
         
-        // Main application loop
-        lo.info("Entering main application loop, press Esc to exit");
-        
-        while (!gSignalStatus) {
-            // Check for config changes every second
-            static auto lastCheck = std::chrono::steady_clock::now();
-            auto now = std::chrono::steady_clock::now();
+        while (running) {
+            // Process events
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
             
-            if(std::chrono::duration_cast<std::chrono::seconds>(now - lastCheck) > std::chrono::seconds(1)) {
-                config.Reload();
-                mappings.Reload();
-                
-                if(mappings.CheckRebind()) {
-                    lo.info("Hotkey rebind needed, updating bindings");
-                    io->ClearHotkeys();
-                    mappings.BindHotkeys(*io);
-                }
+            // Check for config changes periodically
+            auto now = std::chrono::steady_clock::now();
+            if (std::chrono::duration_cast<std::chrono::seconds>(now - lastCheck).count() >= 5) {
+                // Check if config file was modified
+                // config.CheckModified()
                 
                 // Update window manager with new config
-                int newMoveSpeed = config.Get<int>("Window.MoveSpeed", 10);
-                WindowManager::SetMoveSpeed(newMoveSpeed);
+                // int newMoveSpeed = config.Get<int>("Window.MoveSpeed", 10);
+                // windowManager->SetMoveSpeed(newMoveSpeed);
                 
                 lastCheck = now;
             }
-            
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
         
-        // Cleanup resources
-        lo.info("Application shutting down, cleaning up resources");
+        // Cleanup
         server.Stop();
-        H::DisplayManager::Close();
         
-        lo.info("Shutdown complete");
+        lo.info("Shutting down HvC...");
         return 0;
     }
     catch (const std::exception& e) {
-        lo.error("Fatal error: " + std::string(e.what()));
-        H::Notifier::Error("Application crashed: " + std::string(e.what()));
+        std::cerr << "Fatal error: " << e.what() << std::endl;
+        lo.fatal(std::string("Fatal error: ") + e.what());
         return 1;
     }
 #endif

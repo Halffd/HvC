@@ -1,32 +1,25 @@
 #pragma once
-#include "WindowManager.hpp"
-#include <regex>
+#include <string>
+#include <vector>
+#include <functional>
 
 namespace H {
+
 class WindowRules {
 public:
-    struct Rule {
-        std::regex classPattern;
-        std::regex titlePattern;
-        std::function<void(WindowManager&)> action;
-    };
-
-    void AddRule(Rule rule) {
-        rules.push_back(rule);
-    }
-
-    void ApplyRules(WindowManager& wm) {
-        auto [cls, title] = wm.GetWindowProperties(wm.GetActiveWindow());
-        
-        for(const auto& rule : rules) {
-            if(std::regex_search(cls, rule.classPattern) &&
-               std::regex_search(title, rule.titlePattern)) {
-                rule.action(wm);
-            }
-        }
-    }
-
+    WindowRules();
+    ~WindowRules();
+    
+    void AddRule(const std::string& windowPattern, std::function<void(wID)> action);
+    void ProcessWindow(wID window);
+    
 private:
+    struct Rule {
+        std::string pattern;
+        std::function<void(wID)> action;
+    };
+    
     std::vector<Rule> rules;
 };
-} 
+
+} // namespace H 
