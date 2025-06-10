@@ -22,10 +22,10 @@ if [[ "$1" =~ ^[01]$ ]]; then
     shift
     if [[ $BUILD_MODE -eq 1 ]]; then
         BUILD_TYPE="Release"
-        BUILD_DIR="build-release"
+        BUILD_DIR="build"
     else
         BUILD_TYPE="Debug" 
-        BUILD_DIR="build-debug"
+        BUILD_DIR="build"
     fi
 fi
 

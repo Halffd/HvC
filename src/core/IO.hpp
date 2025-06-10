@@ -48,6 +48,7 @@ enum class MouseAction {
         bool exclusive = false;
         bool success = false;
         bool evdev = false;
+        bool isKeyUp = false; // Tracks if this is a key release hotkey
     };
 
     struct ModifierState {
@@ -108,6 +109,12 @@ enum class MouseAction {
         bool Suspend(int id);
 
         bool Resume(int id);
+
+        // Suspend or resume all hotkeys
+        void suspendAllHotkeys(bool suspend) {
+            suspendHotkeys = suspend;
+            std::cout << "All hotkeys " << (suspend ? "suspended" : "resumed") << std::endl;
+        }
 
         // Mouse methods
         void MouseMove(int x, int y);

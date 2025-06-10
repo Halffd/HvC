@@ -21,8 +21,27 @@
 #ifdef __linux__
 #include <X11/extensions/Xrandr.h>
 #endif
+
 namespace havel {
+// Initialize static member
 std::string HotkeyManager::currentMode = "default";
+
+// Constructor
+HotkeyManager::HotkeyManager(IO& io, WindowManager& windowManager, MPVController& mpv, ScriptEngine& scriptEngine)
+    : io(io),
+      windowManager(windowManager),
+      mpv(mpv),
+      scriptEngine(scriptEngine) {
+    // Initialize auto-clicker and auto-presser
+    autoClicker = std::make_shared<AutoClicker>(std::make_shared<IO>(io));
+    autoPresser = std::make_shared<AutoPresser>(std::make_shared<IO>(io));
+    
+    // Initialize AutoRunner instance
+    genshinAutoRunner = new AutoRunner(io);
+    
+    loadVideoSites();
+}
+
 void HotkeyManager::Zoom(int zoom, IO& io) {
     if (zoom < 0) zoom = 0;
     else if (zoom > 2) zoom = 2;
@@ -37,13 +56,6 @@ void HotkeyManager::Zoom(int zoom, IO& io) {
     } else {
         std::cout << "Invalid zoom level: " << zoom << std::endl;
     }
-}
-HotkeyManager::HotkeyManager(IO& io, WindowManager& windowManager, MPVController& mpv, ScriptEngine& scriptEngine)
-    : io(io),
-      windowManager(windowManager),
-      mpv(mpv),
-      scriptEngine(scriptEngine){
-    loadVideoSites();
 }
 
 void HotkeyManager::loadVideoSites() {
@@ -384,99 +396,7 @@ void HotkeyManager::RegisterDefaultHotkeys() {
         nullptr, // No action when not in gaming mode
         0 // ID parameter
     );
-
-    // autoclick in gaming mode
-    AddContextualHotkey("#Enter", "currentMode == 'gaming'",
-        [this]() {
-            lo.info("Gaming hotkey: Starting autoclicker with Enter key");
-            startAutoclicker("Button1");
-        },
-        nullptr, // No action when not in gaming mode
-        0 // ID parameter
-    );
-
-    // Add a variable to track and allow stopping Genshin automation
-    static std::atomic<bool> genshinAutomationActive(false);
-    static AutoRunner genshinAutoRunner(io);
-    AddContextualHotkey("/", "currentMode == 'gaming'",
-        []() {
-            lo.info("Genshin Impact detected - Starting specialized auto actions");
-            genshinAutoRunner.toggle();
-        },
-        nullptr, // No action when not in gaming mode
-        0 // ID parameter
-    );
-
-    // Special hotkeys for Genshin Impact - Start automation
-    AddContextualHotkey("enter", "currentMode == 'gaming'", [this]() {
-    if (genshinAutomationActive) {
-        lo.warning("Genshin automation is already active");
-        return;
-    }
-
-    lo.info("Genshin Impact detected - Starting specialized auto actions");
-    showNotification("Genshin Automation", "Starting automation sequence");
-    genshinAutomationActive = true;
-
-    startAutoclicker("Button1");
-
-    // Launch automation thread
-    std::thread([this]() {
-        const int maxIterations = 300;
-        int counter = 0;
-
-        while (counter < maxIterations && genshinAutomationActive && currentMode == "gaming") {
-            // Verify Genshin window is active
-            bool isGenshinActive = false;
-            wID activeWindow = WindowManager::GetActiveWindow();
-
-            if (activeWindow != 0) {
-                try {
-                    Window window(std::to_string(activeWindow), activeWindow);
-                    isGenshinActive = window.Title().find("Genshin") != std::string::npos;
-                } catch (...) {
-                    lo.error("Genshin automation: Could not get window title");
-                    break;
-                }
-            }
-
-            if (!isGenshinActive) {
-                lo.info("Genshin automation: Window no longer active");
-                break;
-            }
-
-            // Press E
-            io.Send("e");
-            lo.debug("Genshin automation: Pressed E (" + std::to_string(counter + 1) + "/" + std::to_string(maxIterations) + ")");
-
-            // Every 5th loop, press Q
-            if (counter % 5 == 0) {
-                io.Send("q");
-                lo.debug("Genshin automation: Pressed Q");
-            }
-
-            counter++;
-            std::this_thread::sleep_for(std::chrono::seconds(2));
-        }
-
-        genshinAutomationActive = false;
-        lo.info("Genshin automation: Automation ended");
-
-    }).detach();
-
-}, nullptr, 0);
-    // Add hotkey to stop Genshin automation
-    AddHotkey("!+g", [this]() {
-        if (genshinAutomationActive) {
-            genshinAutomationActive = false;
-            lo.info("Manually stopping Genshin automation");
-            showNotification("Genshin Automation", "Automation sequence stopped");
-        } else {
-            lo.info("Genshin automation is not active");
-            showNotification("Genshin Automation", "No active automation to stop");
-        }
-    });
-}
+} 
 void HotkeyManager::PlayPause() {
     if (mpv.IsSocketAlive()) {
         mpv.SendCommand({"cycle", "pause"});
@@ -485,7 +405,7 @@ void HotkeyManager::PlayPause() {
         system("playerctl play-pause");
     }
 }
-void HotkeyManager::RegisterMediaHotkeys() {
+void havel::HotkeyManager::RegisterMediaHotkeys() {
     int mpvBaseId = 10000;
 std::vector<HotkeyDefinition> mpvHotkeys = {
     // Volume
@@ -521,7 +441,7 @@ std::vector<HotkeyDefinition> mpvHotkeys = {
     { "+x", "currentMode == 'gaming'", [this]() { mpv.SendCommand({"add", "sub-delay", "0.1"}); }, nullptr, mpvBaseId++ },
     { "9", "currentMode == 'gaming'", [this]() { mpv.SendCommand({"cycle", "sub"}); }, nullptr, mpvBaseId++ },
     { "0", "currentMode == 'gaming'", [this]() { mpv.SendCommand({"sub-seek", "0"}); }, nullptr, mpvBaseId++ },
-    { "m", "currentMode == 'gaming'", [this]() { mpv.SendCommand({"script-binding", "copy_current_subtitle"}); }, nullptr, mpvBaseId++ },
+    { "+c", "currentMode == 'gaming'", [this]() { mpv.SendCommand({"script-binding", "copy_current_subtitle"}); }, nullptr, mpvBaseId++ },
     { "minus", "currentMode == 'gaming'", [this]() { mpv.SendCommand({"sub-seek", "-1"}); }, nullptr, mpvBaseId++ },
     { "equal", "currentMode == 'gaming'", [this]() { mpv.SendCommand({"sub-seek", "1"}); }, nullptr, mpvBaseId++ },
 
@@ -591,33 +511,19 @@ void HotkeyManager::RegisterWindowHotkeys() {
     io.Hotkey("left", [this]() {
         io.Send("a");
     });*/
-    // Add contextual hotkey for D key in Koikatu using both class and title detection
-    // First check by window class
-    /*AddContextualHotkey("d", "Window.Active('class:Koikatu')",
-        [this]() {
-            // Show black overlay when D is pressed in Koikatu
-            lo.info("Koikatu window detected - D key pressed - showing black overlay");
-            showBlackOverlay();
-            logWindowEvent("KOIKATU_BLACK_OVERLAY", "Showing black overlay from Koikatu window (class match)");
-        },
-        nullptr, // No action when condition is false
-        0 // ID parameter
-    );
-
-    // Also add a title-based hotkey for Koikatu window title (as a fallback)
-    AddContextualHotkey("d", "Window.Active('name:Koikatu')",
-        [this]() {
-            // Show black overlay when D is pressed in Koikatu window
-            lo.info("Koikatu window title detected - D key pressed - showing black overlay");
-            showBlackOverlay();
-            logWindowEvent("KOIKATU_BLACK_OVERLAY", "Showing black overlay from Koikatu window (title match)");
-        },
-        nullptr, // No action when condition is false
-        0 // ID parameter
-    );*/
 }
 
 void HotkeyManager::RegisterSystemHotkeys() {
+    // Register Windows key handler
+    io.Hotkey("@lwin", [this]() {
+        onLeftWinKey(true);
+    });
+    
+    // Register Windows key release handler
+    io.Hotkey("@lwin up", [this]() {
+        onLeftWinKey(false);
+    });
+    
     // System commands
     io.Hotkey("#l", []() {
         // Lock screen
@@ -668,6 +574,24 @@ void HotkeyManager::RegisterSystemHotkeys() {
         std::string status = verboseConditionLogging ? "enabled" : "disabled";
         lo.info("Verbose condition logging " + status);
         showNotification("Debug Setting", "Condition logging " + status);
+    });
+
+    // Add F9 suspend key functionality
+    AddHotkey("f9", [this]() {
+        static bool suspended = false;
+        suspended = !suspended;
+        
+        if (suspended) {
+            // Suspend all hotkeys
+            io.suspendAllHotkeys(true);
+            lo.info("All hotkeys suspended");
+            showNotification("Hotkeys", "All hotkeys suspended");
+        } else {
+            // Resume all hotkeys
+            io.suspendAllHotkeys(false);
+            lo.info("All hotkeys resumed");
+            showNotification("Hotkeys", "All hotkeys resumed");
+        }
     });
 }
 
@@ -1066,93 +990,75 @@ bool HotkeyManager::isGamingWindow() {
 }
 
     void HotkeyManager::startAutoclicker(const std::string& button) {
-    wID currentWindow = WindowManager::GetActiveWindow();
-
-    // If already running, stop it (toggle behavior)
-    if (autoclickerActive) {
-        lo.info("Stopping autoclicker - toggled off");
-        autoclickerActive = false;
-        if (autoclickerThread.joinable()) {
-            autoclickerThread.join();
+        // If already running, stop it (toggle behavior)
+        if (autoclickerActive) {
+            stopAllAutoclickers();
+            return;
         }
-        return;
-    }
 
-    // Not a gaming window? Abort!
-    if (!isGamingWindow()) {
-        lo.debug("Autoclicker not activated - not in gaming window");
-        return;
-    }
+        // Not a gaming window? Abort!
+        if (!isGamingWindow()) {
+            lo.debug("Autoclicker not activated - not in gaming window");
+            return;
+        }
 
-    // Save the window we're starting in
-    autoclickerWindowID = currentWindow;
-    autoclickerActive = true;
+        // Save the window we're starting in
+        autoclickerWindowID = WindowManager::GetActiveWindow();
+        autoclickerActive = true;
 
-    lo.info("Starting autoclicker (" + button + ") in window: " + std::to_string(autoclickerWindowID));
-
-    // Configuration for autoclicker timing (in milliseconds)
-    struct AutoClickerConfig {
-        int clickInterval = 50;  // Time between click sequences
-        int clickHold = 20;      // Time to hold button down
-    };
-    
-    static AutoClickerConfig config;  // Static to persist between calls
-    
-    // Helper function to handle mouse button clicks
-    auto clickButton = [this, &button](MouseAction action) {
-        if (button == "Button1" || button == "Left") {
-            io.Click(MouseButton::Left, action);
-        } else if (button == "Button2" || button == "Right") {
-            io.Click(MouseButton::Right, action);
-        } else if (button == "Button3" || button == "Middle") {
-            io.Click(MouseButton::Middle, action);
-        } else if (button == "Side1") {
-            io.Click(MouseButton::Side1, action);
-        } else if (button == "Side2") {
-            io.Click(MouseButton::Side2, action);
+        lo.info("Starting autoclicker (" + button + ") in window: " + std::to_string(autoclickerWindowID));
+        
+        // Set up the auto-clicker based on the button
+        if (button == "left" || button == "Left" || button == "Button1") {
+            autoClicker->SetClickType(AutoClicker::ClickType::Left);
+            autoClicker->Start(config.clickInterval);
+        } else if (button == "right" || button == "Right" || button == "Button3") {
+            autoClicker->SetClickType(AutoClicker::ClickType::Right);
+            autoClicker->Start(config.clickInterval);
+        } else if (button == "middle" || button == "Middle" || button == "Button2") {
+            autoClicker->SetClickType(AutoClicker::ClickType::Middle);
+            autoClicker->Start(config.clickInterval);
         } else {
-            lo.error("Invalid mouse button: " + button);
+            // Handle other buttons or key sequences with auto-presser
+            std::vector<std::string> keys = {button};
+            autoPresser->Start(keys, config.clickInterval);
         }
-    };
-
-    // ONE thread that handles everything
-    autoclickerThread = std::thread([this, button, clickButton]() {
-        while (autoclickerActive) {
-            // Check if window changed
-            wID activeWindow = WindowManager::GetActiveWindow();
-            if (activeWindow != autoclickerWindowID) {
-                lo.info("Stopping autoclicker - window changed");
-                autoclickerActive = false;
-                break;
+        
+        // Start a thread to monitor window focus
+        autoclickerThread = std::thread([this]() {
+            while (autoclickerActive) {
+                // Check if window changed
+                wID activeWindow = WindowManager::GetActiveWindow();
+                if (activeWindow != autoclickerWindowID) {
+                    lo.info("Stopping autoclicker - window changed");
+                    stopAllAutoclickers();
+                    break;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
             }
-
-            // Click sequence
-            clickButton(MouseAction::Hold);
-            std::this_thread::sleep_for(std::chrono::milliseconds(config.clickHold));
-            clickButton(MouseAction::Release);
-            
-            // Sleep for the rest of the interval
-            std::this_thread::sleep_for(
-                std::chrono::milliseconds(config.clickInterval - config.clickHold));
-        }
-
-        lo.info("Autoclicker thread terminated");
-    });
-
-    // Detach so it runs independently
+            lo.info("Autoclicker monitor thread terminated");
+        });
+        
+        // Detach the monitor thread
     autoclickerThread.detach();
 }
 
     // Call this when you need to force-stop (e.g., on app exit)
-    void HotkeyManager::stopAllAutoclickers() {
+void HotkeyManager::stopAllAutoclickers() {
     if (autoclickerActive) {
-        lo.info("Force stopping all autoclickers");
         autoclickerActive = false;
-        if (autoclickerThread.joinable()) {
-            autoclickerThread.join();
-        }
+        
+        // Stop both auto-clicker and auto-presser
+        autoClicker->Stop();
+        autoPresser->Stop();
+        
+        // Clear the window ID
+        autoclickerWindowID = 0;
+        
+        lo.info("All auto-clickers and auto-pressers stopped");
     }
 }
+
 std::string HotkeyManager::handleKeycode(const std::string& input) {
     // Extract the keycode number from format "kcXXX"
     std::string numStr = input.substr(2);
@@ -1728,4 +1634,30 @@ void HotkeyManager::applyDebugSettings() {
     });
 }
 
-} // namespace havel
+void HotkeyManager::onLeftWinKey(bool isDown) {
+    if (isDown) {
+        leftWinKeyPressed = true;
+        
+        // In gaming mode, trigger play/pause on key down
+        if (inGamingMode()) {
+            logKeyEvent("LeftWin", "KEY_DOWN", "Play/Pause in gaming mode");
+            PlayPause();
+        } else {
+            logKeyEvent("LeftWin", "KEY_DOWN", "Ignored - not in gaming mode");
+        }
+    } else {
+        // On key up, if we're in gaming mode and the key was previously pressed
+        if (leftWinKeyPressed && inGamingMode()) {
+            logKeyEvent("LeftWin", "KEY_UP", "Opening XFCE popup");
+            openXfcePopup();
+        }
+        leftWinKeyPressed = false;
+    }
+}
+
+void HotkeyManager::openXfcePopup() {
+    // Use xdotool to simulate the Super_L key press to open the XFCE menu
+    // We need to release any modifiers first to avoid conflicts
+    std::system("xfce4-popup-whiskermenu");
+}
+}

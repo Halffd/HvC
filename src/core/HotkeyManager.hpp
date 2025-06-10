@@ -5,6 +5,9 @@
 #include "ScriptEngine.hpp"
 #include "BrightnessManager.hpp"
 #include "../utils/Utils.hpp"
+#include "AutoClicker.hpp"
+#include "AutoPresser.hpp"
+#include "../media/AutoRunner.h"
 #include <functional>
 #include <filesystem>
 #include <string>
@@ -28,7 +31,13 @@ namespace havel {
         HotkeyManager(IO &io, WindowManager &windowManager, MPVController &mpv,
                       ScriptEngine &scriptEngine);
 
-        ~HotkeyManager() = default;
+        ~HotkeyManager() {
+            cleanupThreads();
+            if (genshinAutoRunner) {
+                delete genshinAutoRunner;
+                genshinAutoRunner = nullptr;
+            }
+        }
         void Zoom(int zoom, IO& io);
 
         // Debug flags
@@ -36,6 +45,9 @@ namespace havel {
         bool verboseWindowLogging = false;
         bool verboseConditionLogging = false;
 
+        std::unique_ptr<AutoRunner> autoRunner;
+        std::mutex autoRunnerMutex;
+        AutoRunner* genshinAutoRunner = nullptr;
         void setVerboseKeyLogging(bool value) { verboseKeyLogging = value; }
 
         void setVerboseWindowLogging(bool value) {
@@ -155,7 +167,48 @@ namespace havel {
 
         bool autoclickerActive = false;
         wID autoclickerWindowID = 0;
-        std::thread autoclickerThread;
+        // Auto-clicking and auto-pressing
+        std::shared_ptr<AutoClicker> autoClicker;
+        std::shared_ptr<AutoPresser> autoPresser;
+        // Thread management for automation features
+        mutable std::mutex threadMutex;
+        std::vector<std::thread> workerThreads;
+        std::atomic<bool> stopThreads{false};
+        
+        // Clean up all worker threads
+        void cleanupThreads() {
+            stopThreads = true;
+            std::lock_guard<std::mutex> lock(threadMutex);
+            for (auto& thread : workerThreads) {
+                if (thread.joinable()) {
+                    thread.join();
+                }
+            }
+            workerThreads.clear();
+            stopThreads = false;
+        }
+        
+        // Start a new worker thread with cleanup on scope exit
+        template<typename Function, typename... Args>
+        void startWorkerThread(Function&& f, Args&&... args) {
+            std::lock_guard<std::mutex> lock(threadMutex);
+            workerThreads.emplace_back([this, f = std::forward<Function>(f), args...]() {
+                try {
+                    std::invoke(f, std::forward<Args>(args)...);
+                } catch (const std::exception& e) {
+                    lo.error(std::string("Worker thread error: ") + e.what());
+                } catch (...) {
+                    lo.error("Unknown error in worker thread");
+                }
+            });
+            
+            // Clean up finished threads
+            workerThreads.erase(
+                std::remove_if(workerThreads.begin(), workerThreads.end(),
+                    [](const std::thread& t) { return !t.joinable(); }),
+                workerThreads.end()
+            );
+        }
         // Key name conversion maps
         const std::map<std::string, std::string> keyNameAliases = {
             // Mouse buttons
@@ -293,5 +346,9 @@ namespace havel {
         // Window focus tracking
         bool trackWindowFocus;
         wID lastActiveWindowId;
+        
+        // Windows key state
+        bool leftWinKeyPressed{false};
+        bool inGamingMode() const { return currentMode == "gaming"; }
     };
 }

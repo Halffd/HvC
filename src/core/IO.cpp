@@ -253,8 +253,8 @@ HHOOK IO::keyboardHook = NULL;
         XEvent event;
         Window root = DefaultRootWindow(display);
 
-        // Select events on the root window
-        XSelectInput(display, root, KeyPressMask);
+        // Select both key press and release events on the root window
+        XSelectInput(display, root, KeyPressMask | KeyReleaseMask);
 
         // Helper function to check if a keysym is a modifier
         [[maybe_unused]] auto IsModifierKey = [](KeySym ks) -> bool {
@@ -273,49 +273,51 @@ HHOOK IO::keyboardHook = NULL;
             if (XPending(display) > 0) {
                 XNextEvent(display, &event);
 
-                if (event.type == KeyPress) {
+                if (event.type == KeyPress || event.type == KeyRelease) {
+                    bool isKeyDown = (event.type == KeyPress);
                     XKeyEvent *keyEvent = &event.xkey;
                     KeySym keysym = XLookupKeysym(keyEvent, 0);
 
-                    // --- FIX: Ignore events for modifier keys themselves ---
+                    // Ignore events for modifier keys themselves
                     if (IsModifierKey(keysym)) {
                         continue;
                     }
-                    // ------------------------------------------------------
 
-                    std::cout << "KeyPress event detected: " << XKeysymToString(
-                                keysym)
-                            << " (keycode: " << keyEvent->keycode << ")"
-                            << " with state: " << keyEvent->state << std::endl;
+                    std::cout << (isKeyDown ? "KeyPress" : "KeyRelease") << " event detected: " 
+                              << XKeysymToString(keysym) << " (keycode: " << keyEvent->keycode << ")"
+                              << " with state: " << keyEvent->state << std::endl;
 
-                    // --- FIX: Clean the modifier state mask ---
+                    // Clean the modifier state mask
                     // Include standard modifiers + LockMask (Caps Lock)
                     // Exclude Mod2Mask (NumLock) and Mod3Mask (ScrollLock) typically
                     unsigned int relevantModifiers =
                             ShiftMask | LockMask | ControlMask | Mod1Mask |
                             Mod4Mask | Mod5Mask;
-                    unsigned int cleanedState =
-                            keyEvent->state & relevantModifiers;
-                    // ------------------------------------------
+                    unsigned int cleanedState = keyEvent->state & relevantModifiers;
 
                     // Find and execute matching hotkeys
                     for (const auto &[id, hotkey]: hotkeys) {
                         if (hotkey.enabled) {
-                            // KeySym was stored in hotkey.key during registration
-                            if (hotkey.key == keyEvent->keycode &&
-                                static_cast<int>(cleanedState) == hotkey.modifiers) {
-                                // Compare base key AND cleaned modifier state
+                            bool keyMatches = (hotkey.key == keyEvent->keycode);
+                            bool modifiersMatch = (static_cast<int>(cleanedState) == hotkey.modifiers);
+                            
+                            // For key up hotkeys, only match on key release
+                            // For regular hotkeys, only match on key press (default behavior)
+                            bool eventTypeMatches = hotkey.isKeyUp ? !isKeyDown : isKeyDown;
+                            
+                            if (keyMatches && modifiersMatch && eventTypeMatches) {
                                 std::cout << "Hotkey matched: " << hotkey.alias
-                                        << " (state: " << cleanedState <<
-                                        " vs expected: " << hotkey.modifiers <<
-                                        ")" << std::endl;
+                                        << " (state: " << cleanedState
+                                        << " vs expected: " << hotkey.modifiers
+                                        << ", " << (isKeyDown ? "press" : "release") << ")" << std::endl;
+                                
                                 // Execute the callback in a separate thread to avoid blocking
                                 if (hotkey.callback) {
                                     std::thread([callback = hotkey.callback]() {
                                         callback();
                                     }).detach();
                                 }
-                                // Consider breaking if only one hotkey should match per event
+                                // Only process one matching hotkey per event
                                 break;
                             }
                         }
@@ -951,6 +953,14 @@ HHOOK IO::keyboardHook = NULL;
         if (id == 0) id = ++hotkeyCount;
 
         std::string hotkeyStr = rawInput;
+        bool isKeyUp = false;
+        
+        // Check if this is a key up event hotkey
+        if (hotkeyStr.size() > 3 && 
+            hotkeyStr.compare(hotkeyStr.size() - 3, 3, " up") == 0) {
+            isKeyUp = true;
+            hotkeyStr = hotkeyStr.substr(0, hotkeyStr.size() - 3); // Remove ' up' suffix
+        }
         bool exclusive = true;
         bool suspendKey = false;
         int modifiers = 0;
@@ -1011,6 +1021,7 @@ HHOOK IO::keyboardHook = NULL;
         hk.exclusive = exclusive;
         hk.success = (display && keycode > 0);
         hk.evdev = isEvdev;
+        hk.isKeyUp = isKeyUp;
 
         hotkeys[id] = hk;
         return hotkeys[id];
